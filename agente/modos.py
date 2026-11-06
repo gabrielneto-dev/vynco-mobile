@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import re
 import json
 from collections import defaultdict
 from dataclasses import dataclass
@@ -313,12 +314,22 @@ def _proporcao_da_peca(peca: Peca, brief: Brief) -> str:
     return p if p in PROPORCOES_VALIDAS else PROPORCAO_POR_FORMATO[brief.formato]
 
 
+_RE_MILHAR_PONTO = re.compile(r"^-?[1-9]\d{0,2}(\.\d{3})+$")    # 4.200 / 1.234.567
+_RE_MILHAR_VIRGULA = re.compile(r"^-?[1-9]\d{0,2}(,\d{3})+$")   # 4,200 (exportação em inglês)
+
+
 def _numero(v: str):
-    v = (v or "").strip().replace("R$", "").replace("%", "").strip()
+    """Número em formato brasileiro ou americano: 4.200 · 1.234,56 · 75,50 · 1,234.56 · 75.50 · R$ 10 · 12%."""
+    v = (v or "").strip().replace("R$", "").replace("US$", "").replace("%", "").replace(" ", "").replace(" ", "")
     if not v:
         return None
-    if "," in v:  # formato brasileiro: 1.234,56
-        v = v.replace(".", "").replace(",", ".")
+    if "," in v and "." in v:
+        # O separador que aparece por último é o decimal.
+        v = v.replace(".", "").replace(",", ".") if v.rfind(",") > v.rfind(".") else v.replace(",", "")
+    elif "," in v:
+        v = v.replace(",", "") if _RE_MILHAR_VIRGULA.match(v) else v.replace(",", ".")
+    elif "." in v and _RE_MILHAR_PONTO.match(v):
+        v = v.replace(".", "")
     try:
         return float(v)
     except ValueError:

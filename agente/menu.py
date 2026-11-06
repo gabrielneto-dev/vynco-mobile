@@ -25,6 +25,8 @@ from rich.text import Text
 
 from agente.armazenamento import ErroRegistro
 from agente.arte import ErroArte, montar_arte
+from agente.metricas import importar as importar_metricas
+from agente.metricas import salvar as salvar_metricas
 from agente.cadastro import (
     ARMAZENAMENTOS,
     CAMPOS_NEGOCIO,
@@ -370,6 +372,7 @@ def opcoes_menu(s: Sessao) -> list:
         ("🔄  Reverificar regras", "reverificar", "Reaplica as verificações automáticas · grátis"),
         Separador("─── Gestão ───"),
         ("📋  Peças e aprovação", "pecas", "Ver, abrir, aprovar, registrar publicação, arquivar"),
+        ("📥  Importar métricas da Meta", "metricas", "Lê a exportação do Instagram/Business Suite ou do Gerenciador de Anúncios e liga às peças"),
         ("📊  Analisar resultados", "analisar", "Compara desempenho a partir de um CSV de métricas"),
         Separador("─── Sistema ───"),
         (f"🧠  Modelo de texto: {nome_modelo(s.modelo_texto)}", "modelo", "Sonnet para peças finais, Haiku para rascunhos"),
@@ -710,6 +713,63 @@ def fluxo_reverificar(s: Sessao, peca_id: str | None = None) -> None:
     mostrar_peca(r)
 
 
+def _num_opcional(v: str):
+    v = v.strip()
+    return True if not v or v.isdigit() else "Número inteiro (ou vazio se não souber)."
+
+
+def fluxo_metricas(s: Sessao) -> None:
+    titulo_secao("📥 Importar métricas da Meta")
+    console.print(
+        f"[{SUAVE}]Exporte as métricas do Meta Business Suite (Insights → Conteúdo → Exportar) ou do Gerenciador de Anúncios "
+        "(Relatórios → Exportar → CSV). Colunas em português ou inglês.[/]"
+    )
+    caminho = s.p.caminho("Arquivo exportado (.csv ou .xlsx):")
+    imp = importar_metricas(s.ag, Path(caminho))
+
+    t = Table(box=box.ROUNDED, header_style=SUAVE, expand=True, title=f"Importação ({'anúncios' if imp.tipo == 'anuncios' else 'orgânico'})")
+    for col in ("Peça", "Ligação", "Alcance", "Salv.", "Compart.", "Conversas", "Invest."):
+        t.add_column(col, overflow="fold")
+    fmt = lambda v: "—" if v is None else f"{v:g}"
+    for l in imp.linhas:
+        t.add_row(
+            f"[bold {DESTAQUE}]{l['peca_id']}[/]" if l.get("peca_id") else f"[yellow]{esc(str(l.get('referencia') or '?'))[:40]}[/]",
+            esc(str(l.get("ligacao"))), fmt(l.get("alcance")), fmt(l.get("salvamentos")), fmt(l.get("compartilhamentos")),
+            fmt(l.get("conversas")), fmt(l.get("investimento_brl")),
+        )
+    console.print(t)
+    console.print(f"[{SUAVE}]Colunas reconhecidas: {esc(', '.join(sorted(set(imp.reconhecidas.values()))))}[/]")
+    if imp.nao_ligadas:
+        console.print(
+            f"[yellow]{len(imp.nao_ligadas)} linha(s) sem peça ligada.[/] [{SUAVE}]Para ligar: registre a publicação da peça com o link do post "
+            "(📋 Peças → Registrar publicação) ou comece o nome do anúncio com o ID da peça.[/]"
+        )
+
+    if imp.ligadas and s.p.confirmar("Informar conversas qualificadas e negócios (dados do WhatsApp) das peças ligadas?", padrao=False):
+        for l in imp.ligadas:
+            console.print(f"[bold]{l['peca_id']}[/] [{SUAVE}]{esc(s.ag.registro.entrada(l['peca_id'])['titulo'][:70])}[/]")
+            q = s.p.texto("  Conversas qualificadas (vazio = sem dado):", validar=_num_opcional)
+            n = s.p.texto("  Negócios fechados (vazio = sem dado):", validar=_num_opcional)
+            l["conversas_qualificadas"] = float(q) if q else None
+            l["negocios"] = float(n) if n else None
+
+    destino = salvar_metricas(s.ag, imp)
+    console.print(f"[green]✓ Métricas salvas:[/] {esc(caminho_curto(destino))}")
+
+    if s.p.confirmar("Rodar a análise agora?", padrao=True):
+        confirmar_custo(s, estimar_texto("analisar", s.modelo_texto), s.modelo_texto)
+        with console.status("Analisando...", spinner="dots"):
+            an, _, saida = s.ag.analisar(destino, modelo=s.modelo_texto)
+        mostrar_analise(an, saida)
+
+    publicadas = [l["peca_id"] for l in imp.ligadas if s.ag.registro.entrada(l["peca_id"])["status"] == "publicado"]
+    if publicadas and s.p.confirmar(f"Marcar {len(publicadas)} peça(s) publicada(s) como analisada(s)?", padrao=True):
+        nome = s.responsavel or "responsável"
+        for pid in publicadas:
+            s.ag.registro.atualizar_status(pid, StatusPeca.analisado, nome, nota=f"métricas {destino.name}")
+        console.print("[green]✓ Status atualizado.[/]")
+
+
 def fluxo_analisar(s: Sessao) -> None:
     titulo_secao("📊 Analisar resultados")
     console.print(f"[{SUAVE}]CSV com colunas como peca_id, data, alcance, salvamentos, compartilhamentos, conversas_qualificadas... (veja exemplos/resultados_exemplo.csv)[/]")
@@ -816,6 +876,7 @@ def _executar_acao_peca(s: Sessao, peca_id: str, acao: str) -> None:
         nome = _pedir_responsavel(s)
         reg.registrar_publicacao(peca_id, url=url or None, data=data, campanha=campanha or None, criativo=criativo or None, responsavel=nome)
         console.print(f"[green]📢 Publicação registrada em {data}.[/]")
+        console.print(f"[{SUAVE}]Dica: em anúncios, comece o nome do anúncio com [bold]{peca_id}[/] — a importação de métricas liga sozinha.[/]")
     elif acao == "analisado":
         reg.atualizar_status(peca_id, StatusPeca.analisado, _pedir_responsavel(s))
         console.print("[green]📈 Marcada como analisada.[/]")
@@ -1139,6 +1200,7 @@ FLUXOS: dict[str, Callable[[Sessao], None]] = {
     "reverificar": fluxo_reverificar,
     "pecas": fluxo_pecas,
     "analisar": fluxo_analisar,
+    "metricas": fluxo_metricas,
     "modelo": fluxo_modelo,
     "config": fluxo_config,
 }

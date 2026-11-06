@@ -164,3 +164,12 @@ def test_schema_vai_so_no_response_format_e_raciocinio_baixo(agente, monkeypatch
     monkeypatch.setattr(real, "post", post_recusa)
     real.gerar_estruturado("sistema", "pedido", Peca, modelo="outro/modelo")
     assert "JSON Schema" in enviados[-1]["messages"][1]["content"] and chamadas["n"] == 2
+
+
+def test_numeros_em_formato_brasileiro_e_americano():
+    from agente.modos import _numero
+
+    casos = {"4.200": 4200, "1.234.567": 1234567, "1.234,56": 1234.56, "75,50": 75.5, "150,00": 150, "1,234.56": 1234.56,
+             "4,200": 4200, "75.50": 75.5, "0.123": 0.123, "R$ 10": 10, "12%": 12, "": None, "abc": None}
+    for texto, esperado in casos.items():
+        assert _numero(texto) == esperado, texto

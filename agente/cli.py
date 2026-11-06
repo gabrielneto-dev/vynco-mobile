@@ -227,6 +227,29 @@ def analisar(
     mostrar_uso(ag)
 
 
+@app.command("importar-metricas")
+def importar_metricas(
+    arquivo: Path = typer.Argument(..., exists=True, help="Exportação da Meta (.csv ou .xlsx)."),
+    analisar_agora: bool = typer.Option(False, "--analisar", help="Roda a análise em seguida (usa API)."),
+    modelo: Optional[str] = typer.Option(None),
+):
+    """Importa métricas da Meta, liga às peças e gera o CSV para a análise."""
+    from agente.metricas import ErroMetricas, importar, salvar
+
+    ag = _agente()
+    try:
+        imp = importar(ag, arquivo)
+    except ErroMetricas as erro:
+        _falhar(str(erro))
+    destino = salvar(ag, imp)
+    console.print(f"[green]{len(imp.ligadas)} peça(s) ligada(s), {len(imp.nao_ligadas)} linha(s) sem ligação ({imp.tipo}).[/] {esc(caminho_curto(destino))}")
+    if analisar_agora:
+        with console.status("Analisando resultados..."):
+            an, _, caminho = _executar(lambda: ag.analisar(destino, modelo=modelo))
+        mostrar_analise(an, caminho)
+        mostrar_uso(ag)
+
+
 # ====================================================================== IMAGENS
 def _gerar_imagem_peca(ag: Agente, peca_id, proporcao, quantidade, modelo, tamanho, referencias):
     with console.status("Gerando imagem com Nano Banana..."):
