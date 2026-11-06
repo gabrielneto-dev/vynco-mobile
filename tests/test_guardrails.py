@@ -86,3 +86,14 @@ def test_mistura_de_frentes():
 def test_prompt_imagem_negativas_nao_disparam():
     assert verificar_prompt_imagem("iPhone on a desk, no visible damage, no cracked screens, no Apple logo") == []
     assert verificar_prompt_imagem("iPhone with a cracked screen")[0].regra == "avaria_simulada"
+
+
+def test_texto_sem_acentuacao_pede_revisao():
+    assert regras("Confira os criterios: a avaliacao e presencial e nao pedimos senha.")["sem_acentuacao"] == Nivel.revisao_humana
+    assert "sem_acentuacao" not in regras("Confira os critérios: a avaliação é presencial e não pedimos senha.")
+
+
+def test_percentual_de_bateria_do_criterio_cadastrado_nao_e_falso_dado():
+    negocio = {"criterios_compra_usados": "iPhone 13 a 15, bateria acima de 80%, sem bloqueio"}
+    assert "bateria_sem_fonte" not in regras("Compramos com bateria acima de 80%.", negocio=negocio)
+    assert "bateria_sem_fonte" in regras("Este aparelho tem bateria de 91%.", negocio=negocio)

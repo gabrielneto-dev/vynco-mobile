@@ -16,7 +16,7 @@ Regras invioláveis (detalhes em QUALITY_RULES.md):
 3. Classifique cada afirmação relevante como fato_confirmado (com fonte), hipotese_criativa ou informacao_pendente.
 4. Nunca misture as frentes venda e captação na mesma peça.
 5. Uma ideia central por peça; CTA coerente com a etapa do funil.
-6. Português do Brasil, tom profissional, próximo, direto e confiante. Prompts de imagem em inglês.
+6. Português do Brasil com acentuação e cedilha corretas em todo texto (nunca escreva sem acento), tom profissional, próximo, direto e confiante. Prompts de imagem em inglês.
 7. Para conteúdo genérico você pode trabalhar com premissas explícitas; para oferta concreta, só com dados verificados."""
 
 CONCISAO = """## Economia de texto (cada palavra gerada tem custo)

@@ -99,13 +99,15 @@ def limpar(texto: str | None) -> str:
     """Remove markdown simples e transforma ' | ' em quebras de linha."""
     t = (texto or "").replace("**", "").replace("__", "").strip()
     t = re.sub(r"\s*\|\s*", "\n", t)
+    # Telefone nunca quebra no meio: "(17) 99782-2073" fica numa linha só (espaço não separável).
+    t = re.sub(r"\((\d{2})\)\s+(\d)", "(\\1) \\2", t)
     return t.strip()
 
 
 def _quebrar(draw: ImageDraw.ImageDraw, texto: str, f: ImageFont.FreeTypeFont, largura: int) -> list[str]:
     linhas: list[str] = []
     for paragrafo in texto.split("\n"):
-        palavras, atual = paragrafo.split(), ""
+        palavras, atual = [p for p in paragrafo.split(" ") if p], ""  # split(" ") preserva o espaço não separável
         if not palavras:
             linhas.append("")
             continue
@@ -338,6 +340,13 @@ def _normalizar(t: str) -> str:
     return unicodedata.normalize("NFKD", t.lower()).encode("ascii", "ignore").decode().strip(" .!")
 
 
+def _redundante(texto: str, titulo: str) -> bool:
+    """Texto de apoio que só repete o título (≥60% das palavras) não entra na arte."""
+    a = set(re.findall(r"\w+", _normalizar(texto)))
+    b = set(re.findall(r"\w+", _normalizar(titulo)))
+    return not a or len(a & b) / len(a) >= 0.6
+
+
 def escolher_fundo(ag, peca_id: str, brief: Brief, preferencia: str = "auto") -> tuple[Path | None, str]:
     """Retorna (caminho, tipo) com tipo em: foto_real | ia | liso."""
     if brief.frente == Frente.venda and brief.produto_id:
@@ -381,7 +390,7 @@ def montar_arte(ag, peca_id: str, *, gancho: int = 1, rascunho: bool = False, fu
 
     # O que vai aparecer na arte (para checar pendências).
     if formato in (Formato.imagem, Formato.anuncio):
-        apoio = cenas[0] if cenas and _normalizar(cenas[0]) != _normalizar(titulo) else None
+        apoio = cenas[0] if cenas and not _redundante(cenas[0], titulo) else None
         textos = [titulo, apoio or "", cta]
     else:
         textos = [titulo, cta] + cenas[1:]

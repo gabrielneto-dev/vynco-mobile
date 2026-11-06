@@ -1,22 +1,26 @@
 {
   "_instrucoes": "Preencha somente com informações confirmadas pelo negócio. Campos null são tratados pelo agente como [PENDENTE]. Nunca preencha com suposições.",
-  "nome_loja": null,
-  "cidade_regiao_atendimento": null,
-  "whatsapp_comercial": null,
+  "nome_loja": "Vynco Mobile",
+  "cidade_regiao_atendimento": "Jales e região (até 30 km)",
+  "whatsapp_comercial": "(17) 99782-2073",
   "instagram": null,
   "facebook": null,
-  "retirada_entrega_logistica": null,
+  "retirada_entrega_logistica": "Sem loja física. Entrega em cidades até 60 km de Jales",
   "garantia_oferecida": null,
-  "parcelamento": null,
-  "formas_pagamento_venda": null,
-  "troca_aceita": null,
+  "parcelamento": "Em até 12x no cartão, com os juros da maquininha",
+  "formas_pagamento_venda": "Pix, cartão e dinheiro",
+  "troca_aceita": "Sim, aceita iPhone usado como parte do pagamento",
   "politica_devolucao": null,
-  "prazo_resposta_atendimento": null,
-  "criterios_compra_usados": null,
-  "modelos_captacao_foco": ["iPhone 13", "iPhone 14", "iPhone 15"],
-  "forma_pagamento_compra_usados": null,
+  "prazo_resposta_atendimento": "Em até 30 minutos",
+  "criterios_compra_usados": "iPhone 13 a 15, bateria acima de 80%, sem bloqueio, sem peça trocada",
+  "modelos_captacao_foco": [
+    "Linha iPhone 13",
+    "Linha iPhone 14",
+    "Linha iPhone 15"
+  ],
+  "forma_pagamento_compra_usados": "Pix, após a avaliação presencial",
   "paleta_cores": null,
   "logotipo": null,
   "diferenciais_comprovados": [],
-  "observacoes": null
+  "observacoes": "A avaliação de aparelhos usados é presencial. A loja não tem loja física."
 }

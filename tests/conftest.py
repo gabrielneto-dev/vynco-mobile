@@ -95,8 +95,16 @@ class ClienteFalso(ClienteOpenRouter):
 
 @pytest.fixture
 def agente(tmp_path: Path) -> Agente:
+    # Dados de teste próprios: nunca dependem do que o usuário cadastrou em dados/.
+    from agente.cadastro import CAMPOS_NEGOCIO
+
     dados = tmp_path / "dados"
-    shutil.copytree(RAIZ / "dados", dados)
+    dados.mkdir()
+    negocio = {"_instrucoes": "dados de teste"} | {c.chave: None for c in CAMPOS_NEGOCIO}
+    negocio |= {"modelos_captacao_foco": ["iPhone 13", "iPhone 14", "iPhone 15"], "diferenciais_comprovados": []}
+    (dados / "negocio.json").write_text(json.dumps(negocio, ensure_ascii=False), encoding="utf-8")
+    (dados / "estoque.json").write_text("[]", encoding="utf-8")
+    shutil.copy(RAIZ / "dados" / "estoque.exemplo.json", dados / "estoque.exemplo.json")
     cfg = replace(carregar_config(), dir_dados=dados, dir_saida=tmp_path / "saida", api_key="teste")
     return Agente(cfg, ClienteFalso(cfg), carregar_contexto(cfg), Registro(cfg.dir_saida))
 

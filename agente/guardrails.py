@@ -124,6 +124,11 @@ _RE_RISCO_FISICO = re.compile(
 _RE_NEGACAO = re.compile(r"\b(nunca|jamais|n[aã]o|nem|sem|nenhum[a]?|momento algum|de forma alguma|de jeito nenhum)\b")
 _RE_FRASES = re.compile(r"[^.!?\n]+")
 
+_RE_SEM_ACENTO = re.compile(
+    r"\b(nao|voce|voces|avaliacao|avaliacoes|condicao|condicoes|informacao|informacoes|criterios?|pecas|cartao|tambem|"
+    r"entao|ate|negociacao|atencao|preco|precos|saude|seguranca|duvida|duvidas)\b"
+)
+
 _RE_PRECO = re.compile(r"r\$\s*\d[\d.,]*")
 _RE_BATERIA = re.compile(r"(bateria|sa[uú]de)\D{0,25}(\d{2,3})\s*%")
 _RE_GARANTIA = re.compile(r"garantia")
@@ -174,8 +179,11 @@ def verificar_texto(
             achados.append(Achado(Nivel.revisao_humana, "preco", "Preço exige aprovação humana antes de publicar.", _trecho(t, m)))
 
     # Saúde de bateria: precisa bater com o estoque.
+    criterios = " ".join(str(negocio.get(k) or "") for k in ("criterios_compra_usados", "observacoes"))
     for m in _RE_BATERIA.finditer(t):
         valor = int(m.group(2))
+        if not produto and re.search(rf"\b{valor}\s*%", criterios):
+            continue  # é um critério cadastrado pelo negócio (ex.: "bateria acima de 80%"), não dado de unidade
         if not produto or produto.saude_bateria_pct is None:
             achados.append(Achado(Nivel.revisao_humana, "bateria_sem_fonte", "Percentual de bateria sem unidade verificada; confirme se é exemplo genérico.", _trecho(t, m)))
         elif valor != produto.saude_bateria_pct:
@@ -197,6 +205,11 @@ def verificar_texto(
         chave = "forma_pagamento_compra_usados" if "pag" in m.group(1) or "pix" in m.group(1) else "prazo_resposta_atendimento"
         if not negocio.get(chave):
             achados.append(Achado(Nivel.revisao_humana, "prazo_pagamento", f"Prazo/forma citada sem definição em negocio.json ({chave}).", _trecho(t, m)))
+
+    # Texto sem acentuação (modelos às vezes "escapam" para ASCII): 2+ palavras comuns sem acento.
+    sem_acento = sorted({m.group(0) for m in _RE_SEM_ACENTO.finditer(t)})
+    if len(sem_acento) >= 2:
+        achados.append(Achado(Nivel.revisao_humana, "sem_acentuacao", "Texto sem acentuação — corrija antes de publicar (ou gere de novo).", ", ".join(sem_acento[:6])))
 
     # Mistura de frentes.
     if frente == Frente.venda and (m := _RE_CTA_CAPTACAO.search(t)):

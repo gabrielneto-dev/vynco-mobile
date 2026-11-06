@@ -61,12 +61,30 @@ def _texto_da_mensagem(msg: dict) -> str:
     return conteudo
 
 
+_RE_ACENTO = re.compile(r"[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]")
+_RE_LETRA = re.compile(r"[A-Za-zÀ-ÿ]")
+# Modelos que, com response_format nativo, devolvem português sem acento (medido em 11/2026).
+# Para eles o schema vai no texto do pedido (custa ~5 mil tokens de entrada a mais, centavos no Haiku).
+MODELOS_SEM_SAIDA_NATIVA = ("anthropic/claude-haiku",)
+
+
+def parece_sem_acento(texto: str) -> bool:
+    """Texto longo em português quase sem acentos (normal: ~15–25 por mil letras)."""
+    letras = len(_RE_LETRA.findall(texto))
+    return letras > 800 and len(_RE_ACENTO.findall(texto)) * 1000 / letras < 3
+
+
 class ClienteOpenRouter:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self._suporta_json_schema: dict[str, bool] = {}
         self._suporta_raciocinio: dict[str, bool] = {}
         self.uso_acumulado: dict[str, float] = {"prompt_tokens": 0, "completion_tokens": 0, "custo_usd": 0.0}
+
+    def _usa_saida_nativa(self, modelo: str) -> bool:
+        if modelo in self._suporta_json_schema:
+            return self._suporta_json_schema[modelo]
+        return not modelo.startswith(MODELOS_SEM_SAIDA_NATIVA)
 
     # ------------------------------------------------------------------ baixo nível
     def post(self, payload: dict) -> dict:
@@ -112,7 +130,7 @@ class ClienteOpenRouter:
         def montar_mensagens() -> list[dict]:
             # Com response_format aceito, o schema vai só nele (economiza ~5 mil tokens de entrada por chamada).
             # Sem suporte, vai no texto do pedido.
-            if self._suporta_json_schema.get(modelo, True):
+            if self._usa_saida_nativa(modelo):
                 pedido = f"{usuario}\n\nResponda somente com o objeto JSON no formato solicitado."
             else:
                 pedido = (
@@ -131,7 +149,7 @@ class ClienteOpenRouter:
             payload: dict[str, Any] = {"model": modelo, "messages": mensagens, "max_tokens": self.cfg.max_tokens}
             if self.cfg.esforco_raciocinio and self._suporta_raciocinio.get(modelo, True):
                 payload["reasoning"] = {"effort": self.cfg.esforco_raciocinio}
-            if self._suporta_json_schema.get(modelo, True):
+            if self._usa_saida_nativa(modelo):
                 payload["response_format"] = {
                     "type": "json_schema",
                     "json_schema": {
@@ -156,7 +174,13 @@ class ClienteOpenRouter:
 
             texto = _texto_da_mensagem(data["choices"][0]["message"])
             try:
-                return modelo_saida.model_validate_json(extrair_json(texto))
+                resultado = modelo_saida.model_validate_json(extrair_json(texto))
+                if "response_format" in payload and parece_sem_acento(texto):
+                    # Alguns modelos (ex.: Haiku 5.5) perdem a acentuação com saída estruturada nativa.
+                    self._suporta_json_schema[modelo] = False
+                    mensagens = montar_mensagens()
+                    continue
+                return resultado
             except (ValidationError, ValueError) as e:
                 ultimo_erro = str(e)[:2000]
                 mensagens = mensagens[:2] + [

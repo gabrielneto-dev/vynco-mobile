@@ -108,3 +108,11 @@ def test_fluxo_arte_no_menu_com_pendencia_vira_rascunho(agente):
     menu.fluxo_arte(s, r.id)
     assert agente.registro.entrada(r.id)["artes"][-1]["rascunho"] is True
     assert s.p.respostas == []
+
+
+def test_telefone_nao_quebra_e_apoio_redundante_some():
+    from agente.arte import _redundante, limpar
+
+    assert "(17)\u00a099782-2073" in limpar("Chame no WhatsApp (17) 99782-2073")
+    assert _redundante("Vender seu iPhone? 4 critérios", "Vai vender seu iPhone? Confira 4 critérios antes de chamar.")
+    assert not _redundante("1 Envie modelo | 2 Avaliação presencial | 3 Pix", "Vai vender seu iPhone?")

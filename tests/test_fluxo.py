@@ -147,7 +147,7 @@ def test_schema_vai_so_no_response_format_e_raciocinio_baixo(agente, monkeypatch
         enviados.append(payload)
         return {"choices": [{"message": {"content": _json.dumps(peca_exemplo())}}], "usage": {}}
     monkeypatch.setattr(real, "post", post)
-    real.gerar_estruturado("sistema", "pedido", Peca)
+    real.gerar_estruturado("sistema", "pedido", Peca, modelo="anthropic/claude-sonnet-5.5")
     p = enviados[0]
     assert "response_format" in p and "JSON Schema" not in p["messages"][1]["content"]
     assert p["reasoning"] == {"effort": agente.cfg.esforco_raciocinio}
@@ -173,3 +173,29 @@ def test_numeros_em_formato_brasileiro_e_americano():
              "4,200": 4200, "75.50": 75.5, "0.123": 0.123, "R$ 10": 10, "12%": 12, "": None, "abc": None}
     for texto, esperado in casos.items():
         assert _numero(texto) == esperado, texto
+
+
+def test_haiku_recebe_schema_no_texto_e_resposta_sem_acento_e_refeita(agente, monkeypatch):
+    """Haiku 5.5 perde acentos com response_format: vai com schema no texto; outros modelos refazem se vier sem acento."""
+    import json as _json
+    from agente.llm import ClienteOpenRouter
+    from conftest import peca_exemplo
+
+    real = ClienteOpenRouter(agente.cfg)
+    enviados = []
+    def post(payload):
+        enviados.append(payload)
+        return {"choices": [{"message": {"content": _json.dumps(peca_exemplo())}}], "usage": {}}
+    monkeypatch.setattr(real, "post", post)
+    real.gerar_estruturado("s", "p", Peca, modelo="anthropic/claude-haiku-5.5")
+    assert "response_format" not in enviados[-1] and "JSON Schema" in enviados[-1]["messages"][1]["content"]
+
+    sem_acento = peca_exemplo(copy_principal="Confira os criterios da avaliacao presencial e o pagamento " * 30)
+    respostas = [sem_acento, peca_exemplo(copy_principal="Confira os critérios da avaliação presencial " * 30)]
+    def post2(payload):
+        enviados.append(payload)
+        return {"choices": [{"message": {"content": _json.dumps(respostas.pop(0))}}], "usage": {}}
+    monkeypatch.setattr(real, "post", post2)
+    p = real.gerar_estruturado("s", "p", Peca, modelo="anthropic/claude-sonnet-5.5")
+    assert "critérios" in p.copy_principal
+    assert "response_format" in enviados[-2] and "response_format" not in enviados[-1]
