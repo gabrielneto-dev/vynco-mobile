@@ -80,3 +80,41 @@ Lição: as regras por palavra-chave precisam de contexto, porque o português t
 3. **(Código)** Menu interativo no terminal, em andamento.
 4. **(Código, opcional)** Compor a arte final: título, passos e logo aplicados sobre a imagem gerada.
 5. **(Código, opcional)** Importar métricas da Meta para o `analisar`.
+
+---
+
+# Atualização — redução de custo e etapa "peça pronta para postar"
+
+## Custo (medido)
+
+| Ação | Antes | Depois |
+|---|---:|---:|
+| Peça com Haiku 5.5 (novo padrão) | — | R$ 0,02 |
+| Peça com Sonnet 5.5 | R$ 0,55–0,65 | R$ 0,39 |
+| Revisão com Sonnet | R$ 0,90 | R$ 0,32 |
+| Imagem (padrão do menu 1K) | R$ 0,55 (2K) | R$ 0,37 |
+
+**Causas corrigidas:**
+- raciocínio interno do Sonnet, agora em esforço "low";
+- JSON Schema enviado duas vezes;
+- respostas sem limite de tamanho.
+
+## Novas funções (todas sem custo de API)
+
+| Função | O que resolve | Evidência |
+|---|---|---|
+| Cadastro do negócio e do estoque pelo menu | Fim do `[PENDENTE]` nas peças novas sem editar JSON; unidades com fotos reais; "vendido" arquiva as peças | `tests/test_cadastro.py` |
+| Arte final (Pillow) | PNG pronto para postar (4:5, 9:16, cartelas de Reel) com título, CTA e marca, dentro das zonas seguras | Artes de EDU-001, CAP-002 e ATR-003 em `saida/pecas/*/arte/`; `tests/test_arte.py` |
+| Importar métricas da Meta | Liga a exportação às peças (link, ID no anúncio, data + formato) e alimenta a análise | `tests/test_metricas.py` (exportações sintéticas PT e EN) |
+| Backup | Espelho incremental de `saida/` e `dados/` no OneDrive; automático ao sair | `tests/test_backup.py` |
+
+## Bugs encontrados nesta etapa
+
+- **Leitura de números:** "4.200" (milhar) virava 4,2. O erro também afetava o CSV manual do `analisar`. Corrigido e coberto por teste.
+- **Arte:** o detalhe decorativo saía sólido por cima do texto (transparência perdida ao salvar), e o cartão do título deixava a foto aparecer através dele. Os dois foram corrigidos após inspeção visual.
+
+## Limitações conhecidas
+
+- **Métricas:** os nomes de coluna da exportação real da Meta precisam ser confirmados com um arquivo de verdade.
+- **Peças antigas:** as criadas antes do cadastro mantêm o texto com `[PENDENTE]`; precisam ser geradas de novo ou adaptadas.
+- **Reel:** a arte entrega a capa e as cartelas; a edição do vídeo continua manual.

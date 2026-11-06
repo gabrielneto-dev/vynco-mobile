@@ -35,8 +35,15 @@ agente/          Código
   guardrails.py  Regras determinísticas de QUALITY_RULES (rodam sempre, sem depender do LLM)
   modos.py       Os 5 modos + lote + imagens
   armazenamento.py  Registro de peças, versões, status, publicações
+  cadastro.py    Dados do negócio e estoque (usado pelo menu)
+  arte.py        Arte final: título, textos, CTA e marca sobre a imagem (Pillow, local)
+  metricas.py    Importação das métricas exportadas da Meta
+  backup.py      Backup incremental para pasta sincronizada
+  menu.py        Menu interativo · visual.py: exibição compartilhada
   cli.py         Comandos
-saida/           Tudo que é gerado (JSON + Markdown + imagens), fora do git
+saida/           Tudo que é gerado (JSON + Markdown + imagens + artes), fora do git
+  pecas/<ID>/v1.md, imagens/, arte/<versão-gancho-fundo>/01.png…
+  metricas/      CSVs normalizados das importações
 ```
 
 Para mudar o comportamento do agente, edite os arquivos em `contexto/` — não o código. Arquivos `.md` novos colocados ali também entram no contexto.
@@ -47,7 +54,17 @@ Para mudar o comportamento do agente, edite os arquivos em `contexto/` — não 
 python -m agente
 ```
 
-Abre o menu no terminal (setas + Enter, Ctrl+C volta). Ele mostra o estado do projeto (modelos, pendências, estoque, peças por status, custo da sessão), cobre todas as funções abaixo, mostra o **custo estimado antes de cada chamada paga** e deixa trocar entre Sonnet (peças finais) e Haiku (rascunhos). Em "Peças e aprovação" você abre, aprova, registra publicação e arquiva peças.
+Ou dê duplo clique em `agente.bat`. Abre o menu no terminal (setas + Enter, Ctrl+C volta). Ele mostra o estado do projeto (modelos, dados do negócio, estoque, peças por status, último backup, custo da sessão), cobre todas as funções abaixo, mostra o **custo estimado em reais antes de cada chamada paga** e deixa trocar entre Haiku (padrão) e Sonnet (peças finais).
+
+### Do zero à peça publicada
+
+1. **🏪 Dados do negócio** — nome, cidade, WhatsApp, critérios de compra, paleta e logo (sem editar JSON).
+2. **📱 Estoque** — cadastre as unidades com fotos reais (só necessário para peças de venda).
+3. **📅 Planejar** e **📦 Gerar peças** (≈ R$ 0,02 por peça com Haiku).
+4. **🎨 Gerar imagem** (opcional, ≈ R$ 0,37) e **🧩 Montar arte final** — PNGs prontos, nas medidas certas, sem Canva (grátis).
+5. **📋 Peças e aprovação** — confira o checklist, aprove, publique **você mesmo** e registre a publicação (com o link do post).
+6. **📥 Importar métricas da Meta** — liga os números às peças e roda a análise.
+7. **💾 Backup** — configure uma vez (OneDrive); depois roda sozinho ao sair.
 
 ## Comandos (uso direto, sem menu)
 
@@ -79,12 +96,17 @@ python -m agente imagem P-20261106-EDU-001 --tamanho 2K
 python -m agente imagem P-20261106-EDU-001 --modelo google/gemini-3-pro-image --tamanho 2K
 python -m agente imagem-livre "Minimal flat lay of an iPhone 15 on light gray, soft light" --proporcao 9:16
 
+# Arte final pronta para postar (local, sem custo)
+python -m agente arte P-20261106-EDU-001 --gancho 2
+python -m agente arte P-20261106-EDU-001 --rascunho      # gera mesmo com [PENDENTE], com tarja
+
 # Fluxo de aprovação e publicação (manual)
 python -m agente listar --status revisao
 python -m agente status P-20261106-EDU-001 aprovado --responsavel "Gabriel"
 python -m agente publicado P-20261106-EDU-001 --data 2026-11-10 --url https://instagram.com/p/... --responsavel "Gabriel"
 
-# Analisar resultados reais (CSV exportado/planilha)
+# Métricas: importar a exportação da Meta (liga às peças) e analisar
+python -m agente importar-metricas insights_instagram.csv --analisar
 python -m agente analisar exemplos/resultados_exemplo.csv
 ```
 
@@ -102,6 +124,9 @@ python -m agente analisar exemplos/resultados_exemplo.csv
 | Aprovação humana | `status aprovado` exige `--responsavel` e zero bloqueios; `publicado` só após aprovado |
 | Sem publicação automática | O agente não tem integração de publicação; `publicado` só registra o que foi feito à mão |
 | Metas sem dados | Análise usa agregados calculados pelo código e declara quando a base é insuficiente |
+| `[PENDENTE]` não vai ao ar | A arte final é recusada se algum texto visível tiver pendência (rascunho só com tarja) |
+| Unidade vendida | "Marcar como vendido" tira das ofertas e oferece arquivar as peças dela |
+| Transparência de imagem | Fundo gerado por IA recebe o selo "Imagem ilustrativa" na arte final |
 
 ## Testes
 
@@ -111,8 +136,8 @@ pytest
 
 Os testes usam um cliente falso: não gastam créditos nem precisam de chave.
 
-## Próximos passos sugeridos (Etapa 3 do roadmap)
+## Próximos passos sugeridos
 
-- Preencher `dados/negocio.json` e cadastrar estoque real.
+- Calibrar a importação de métricas com uma exportação real da Meta (os nomes de colunas variam por idioma/versão).
 - Interface web simples (ex.: Streamlit) sobre os mesmos módulos.
-- Integração com WhatsApp/CRM e importação automática de métricas da Meta.
+- Integração com WhatsApp/CRM para contar conversas qualificadas automaticamente.
