@@ -162,6 +162,27 @@ ESTILO = questionary.Style(
         ("disabled", "fg:#565f89 italic"),
     ]
 )
+def _traduzir_descricao() -> None:
+    """O questionary escreve 'Description:' fixo em inglês; troca por um ícone discreto e em cinza."""
+    from questionary.prompts.common import InquirerControl
+
+    original = InquirerControl._get_choice_tokens
+    if getattr(original, "_traduzido", False):
+        return
+
+    def _tokens(self):
+        return [
+            ("class:instruction", "  ℹ  " + t[1][len("  Description: "):]) if t[1].startswith("  Description: ") else t
+            for t in original(self)
+        ]
+
+    _tokens._traduzido = True  # type: ignore[attr-defined]
+    InquirerControl._get_choice_tokens = _tokens
+
+
+_traduzir_descricao()
+
+
 class Separador:
     def __init__(self, texto: str):
         self.texto = texto
