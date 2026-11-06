@@ -41,7 +41,15 @@ saida/           Tudo que é gerado (JSON + Markdown + imagens), fora do git
 
 Para mudar o comportamento do agente, edite os arquivos em `contexto/` — não o código. Arquivos `.md` novos colocados ali também entram no contexto.
 
-## Comandos
+## Menu interativo
+
+```bash
+python -m agente
+```
+
+Abre o menu no terminal (setas + Enter, Ctrl+C volta). Ele mostra o estado do projeto (modelos, pendências, estoque, peças por status, custo da sessão), cobre todas as funções abaixo, mostra o **custo estimado antes de cada chamada paga** e deixa trocar entre Sonnet (peças finais) e Haiku (rascunhos). Em "Peças e aprovação" você abre, aprova, registra publicação e arquiva peças.
+
+## Comandos (uso direto, sem menu)
 
 ```bash
 # Planejar 4 semanas com 4 posts/semana

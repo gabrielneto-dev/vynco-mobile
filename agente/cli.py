@@ -1,20 +1,18 @@
-"""Interface de linha de comando: `python -m agente <comando>` (ou `agente <comando>` após instalar)."""
+"""Interface de linha de comando: `python -m agente <comando>`; sem comando, abre o menu interativo."""
 
 from __future__ import annotations
 
-import sys
 from datetime import date
 from pathlib import Path
 from typing import Optional
 
 import typer
-from rich.console import Console
-from rich.markup import escape as esc
+from rich import box
 from rich.table import Table
 
-from agente.guardrails import Achado, Nivel
-from agente.llm import ErroLLM
 from agente.armazenamento import ErroRegistro
+from agente.guardrails import Nivel
+from agente.llm import ErroLLM
 from agente.modos import Agente, ErroAgente, ResultadoPeca
 from agente.schemas import (
     ETAPA_POR_PILAR,
@@ -28,22 +26,42 @@ from agente.schemas import (
     Publico,
     StatusPeca,
 )
-
-# Console do Windows: garante UTF-8 para acentos e emojis.
-for _s in (sys.stdout, sys.stderr):
-    try:
-        _s.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
+from agente.visual import (
+    COR,
+    caminho_curto,
+    console,
+    esc,
+    mostrar_analise,
+    mostrar_calendario,
+    mostrar_peca,
+    mostrar_pendencias,
+    mostrar_revisao,
+    mostrar_uso,
+    tabela_pecas,
+)
 
 app = typer.Typer(
-    help="Agente de conteúdo para loja de iPhones — planejar, criar, adaptar, revisar e analisar.",
-    no_args_is_help=True,
+    help="Agente de conteúdo para loja de iPhones — planejar, criar, adaptar, revisar e analisar. Sem comando, abre o menu.",
     add_completion=False,
     pretty_exceptions_enable=False,
 )
-console = Console()
-COR = {Nivel.bloqueio: "red", Nivel.revisao_humana: "yellow", Nivel.aviso: "cyan"}
+
+
+@app.callback(invoke_without_command=True)
+def principal(ctx: typer.Context):
+    """Sem subcomando: abre o menu interativo."""
+    if ctx.invoked_subcommand is None:
+        from agente.menu import executar_menu
+
+        executar_menu()
+
+
+@app.command()
+def menu():
+    """Abre o menu interativo."""
+    from agente.menu import executar_menu
+
+    executar_menu()
 
 
 def _agente() -> Agente:
@@ -55,42 +73,11 @@ def _falhar(msg: str) -> None:
     raise typer.Exit(1)
 
 
-def _mostrar_achados(achados: list[Achado]) -> None:
-    if not achados:
-        console.print("[green]Verificações automáticas: nenhum ponto encontrado.[/]")
-        return
-    t = Table(title="Verificações automáticas", show_lines=False)
-    t.add_column("Nível")
-    t.add_column("Regra")
-    t.add_column("Mensagem")
-    t.add_column("Trecho", overflow="fold")
-    for a in achados:
-        t.add_row(f"[{COR[a.nivel]}]{a.nivel.value}[/]", a.regra, esc(a.mensagem), esc(a.trecho))
-    console.print(t)
-
-
-def _mostrar_peca(r: ResultadoPeca) -> None:
-    console.rule(f"[bold]{r.id} v{r.versao}[/] — {r.peca.titulo_interno}")
-    console.print(f"[dim]{r.brief.pilar.value} · {r.brief.frente.value} · {r.brief.formato.value} · público {r.brief.publico.value} · {r.brief.etapa.value}[/]")
-    console.print("[bold]Ganchos:[/]")
-    for i, g in enumerate(r.peca.ganchos, 1):
-        console.print(f"  {i}. {esc(g)}")
-    console.print(f"[bold]CTA:[/] {esc(r.peca.cta)}")
-    _mostrar_achados(r.achados)
-    console.print(f"[green]Salvo em:[/] {r.caminho_md}")
-
-
-def _uso(ag: Agente) -> None:
-    u = ag.cliente.uso_acumulado
-    if u["prompt_tokens"] or u["completion_tokens"]:
-        console.print(f"[dim]Tokens: {int(u['prompt_tokens'])} entrada / {int(u['completion_tokens'])} saída · custo ≈ US$ {u['custo_usd']:.4f}[/]")
-
-
 def _executar(fn):
     try:
         return fn()
-    except (ErroAgente, ErroLLM, ErroRegistro, ValueError, FileNotFoundError) as e:
-        _falhar(str(e))
+    except (ErroAgente, ErroLLM, ErroRegistro, ValueError, FileNotFoundError) as erro:
+        _falhar(str(erro))
 
 
 # ====================================================================== PLANEJAR
@@ -107,25 +94,9 @@ def planejar(
     data_inicio = date.fromisoformat(inicio) if inicio else None
     with console.status("Planejando calendário..."):
         r = _executar(lambda: ag.planejar(semanas=semanas, inicio=data_inicio, publicacoes_semana=por_semana, foco=foco, modelo=modelo))
-
-    t = Table(title=f"Calendário {r.id} — {r.calendario.periodo}")
-    for col in ("#", "Data", "Pilar", "Frente", "Formato", "Púb.", "Tema"):
-        t.add_column(col, overflow="fold")
-    for n, i in enumerate(r.calendario.itens, 1):
-        t.add_row(str(n), i.data, i.pilar.value, i.frente.value, i.formato.value, i.publico.value, esc(i.tema))
-    console.print(t)
-
-    d = Table(title="Distribuição por pilar")
-    for col in ("Pilar", "Itens", "Real", "Alvo"):
-        d.add_column(col)
-    for p, v in r.distribuicao.items():
-        d.add_row(p, str(v["itens"]), f"{v['real_pct']}%", f"{v['alvo_pct']}%")
-    console.print(d)
-    for a in r.avisos:
-        console.print(f"[yellow]⚠ {esc(a)}[/]")
-    console.print(f"[green]Salvo em:[/] {r.caminho} (e .md)")
+    mostrar_calendario(r)
     console.print(f"[dim]Para gerar as peças: python -m agente lote {r.id}[/]")
-    _uso(ag)
+    mostrar_uso(ag)
 
 
 # ====================================================================== CRIAR
@@ -169,10 +140,10 @@ def criar(
         console.print("[yellow]⚠ Captação normalmente fala com o público C (vendedor de usado).[/]")
     with console.status("Criando peça..."):
         r = _executar(lambda: ag.criar(brief, generico=generico, modelo=modelo))
-    _mostrar_peca(r)
+    mostrar_peca(r)
     if imagem:
         _gerar_imagem_peca(ag, r.id, None, 1, None, None, [])
-    _uso(ag)
+    mostrar_uso(ag)
 
 
 # ====================================================================== LOTE
@@ -186,7 +157,7 @@ def lote(
 ):
     """Gera as peças de todos os itens de um calendário (retoma de onde parou)."""
     ag = _agente()
-    t = Table(title=f"Lote {calendario}")
+    t = Table(title=f"Lote {calendario}", box=box.ROUNDED, expand=True)
     for col in ("#", "Tema", "Resultado", "Bloqueios"):
         t.add_column(col, overflow="fold")
     try:
@@ -198,13 +169,13 @@ def lote(
             else:
                 t.add_row(str(n), esc(item.tema), f"[yellow]{esc(res)}[/]", "-")
                 console.print(f"[yellow]•[/] {n}. {esc(item.tema)} → {esc(res)}")
-    except ErroRegistro as e:
-        _falhar(str(e))
+    except ErroRegistro as erro:
+        _falhar(str(erro))
     console.print(t)
-    _uso(ag)
+    mostrar_uso(ag)
 
 
-# ====================================================================== ADAPTAR
+# ====================================================================== ADAPTAR / REVERIFICAR
 @app.command()
 def adaptar(
     peca_id: str = typer.Argument(...),
@@ -216,8 +187,8 @@ def adaptar(
     ag = _agente()
     with console.status(f"Adaptando {peca_id} para {formato.value}..."):
         r = _executar(lambda: ag.adaptar(peca_id, formato, observacoes=observacoes, modelo=modelo))
-    _mostrar_peca(r)
-    _uso(ag)
+    mostrar_peca(r)
+    mostrar_uso(ag)
 
 
 @app.command()
@@ -225,10 +196,10 @@ def reverificar(peca_id: str = typer.Argument(...)):
     """Reaplica as verificações automáticas (sem custo de API) e grava nova versão."""
     ag = _agente()
     r = _executar(lambda: ag.reverificar(peca_id))
-    _mostrar_peca(r)
+    mostrar_peca(r)
 
 
-# ====================================================================== REVISAR
+# ====================================================================== REVISAR / ANALISAR
 @app.command()
 def revisar(
     alvo: str = typer.Argument(..., help="ID de peça, caminho de arquivo .txt/.md ou texto entre aspas."),
@@ -239,17 +210,10 @@ def revisar(
     ag = _agente()
     with console.status("Revisando..."):
         rev, achados, caminho = _executar(lambda: ag.revisar(alvo, contexto_extra=contexto, modelo=modelo))
-    cor = {"bloqueado": "red", "ajustes_necessarios": "yellow"}.get(rev.veredito, "green")
-    console.rule(f"Veredito: [{cor}]{rev.veredito}[/]")
-    console.print(esc(rev.resumo))
-    for p in rev.problemas:
-        console.print(f"• {esc('[' + p.severidade + ']')} [bold]{esc(p.categoria)}[/]: “{esc(p.trecho)}” → {esc(p.sugestao)}")
-    _mostrar_achados(achados)
-    console.print(f"[green]Salvo em:[/] {caminho}")
-    _uso(ag)
+    mostrar_revisao(rev, achados, caminho)
+    mostrar_uso(ag)
 
 
-# ====================================================================== ANALISAR
 @app.command()
 def analisar(
     csv_path: Path = typer.Argument(..., exists=True, help="CSV de resultados (ver exemplos/resultados_exemplo.csv)."),
@@ -259,14 +223,8 @@ def analisar(
     ag = _agente()
     with console.status("Analisando resultados..."):
         an, _, caminho = _executar(lambda: ag.analisar(csv_path, modelo=modelo))
-    console.rule("Análise")
-    console.print(esc(an.resumo))
-    if not an.base_suficiente:
-        console.print("[yellow]⚠ Base de dados insuficiente para conclusões firmes.[/]")
-    for r in an.recomendacoes:
-        console.print(f"• {esc('[' + r.prioridade + ']')} {esc(r.acao)} — [dim]{esc(r.motivo)}[/]")
-    console.print(f"[green]Salvo em:[/] {caminho}")
-    _uso(ag)
+    mostrar_analise(an, caminho)
+    mostrar_uso(ag)
 
 
 # ====================================================================== IMAGENS
@@ -278,7 +236,7 @@ def _gerar_imagem_peca(ag: Agente, peca_id, proporcao, quantidade, modelo, taman
     for a in achados:
         console.print(f"[{COR[a.nivel]}]{a.nivel.value}: {esc(a.mensagem)}[/]")
     for c in caminhos:
-        console.print(f"[green]Imagem:[/] {c}")
+        console.print(f"[green]Imagem:[/] {esc(caminho_curto(c))}")
     console.print("[dim]Imagem gerada por IA: só para conceitos/campanhas gerais, nunca para representar a unidade vendida.[/]")
 
 
@@ -294,7 +252,7 @@ def imagem(
     """Gera a imagem de uma peça a partir do prompt dela (Nano Banana via OpenRouter)."""
     ag = _agente()
     _gerar_imagem_peca(ag, peca_id, proporcao, quantidade, modelo, tamanho, referencia)
-    _uso(ag)
+    mostrar_uso(ag)
 
 
 @app.command("imagem-livre")
@@ -313,8 +271,8 @@ def imagem_livre(
     for a in achados:
         console.print(f"[{COR[a.nivel]}]{a.nivel.value}: {esc(a.mensagem)}[/]")
     for c in caminhos:
-        console.print(f"[green]Imagem:[/] {c}")
-    _uso(ag)
+        console.print(f"[green]Imagem:[/] {esc(caminho_curto(c))}")
+    mostrar_uso(ag)
 
 
 # ====================================================================== REGISTRO / FLUXO
@@ -325,14 +283,7 @@ def listar(
 ):
     """Lista as peças registradas."""
     ag = _agente()
-    itens = ag.registro.listar(status.value if status else None, frente.value if frente else None)
-    t = Table(title=f"Peças ({len(itens)})")
-    for col in ("ID", "v", "Status", "Pilar", "Frente", "Formato", "Bloq.", "Título"):
-        t.add_column(col, overflow="fold")
-    for i in itens:
-        b = i.get("bloqueios", 0)
-        t.add_row(i["id"], str(i["versao_atual"]), i["status"], i["pilar"], i["frente"], i["formato"], f"[red]{b}[/]" if b else "0", esc(i["titulo"]))
-    console.print(t)
+    console.print(tabela_pecas(ag.registro.listar(status.value if status else None, frente.value if frente else None)))
 
 
 @app.command()
@@ -345,7 +296,7 @@ def status(
     """Muda o status de uma peça (aprovação exige responsável humano e zero bloqueios)."""
     ag = _agente()
     _executar(lambda: ag.registro.atualizar_status(peca_id, novo, responsavel, nota))
-    console.print(f"[green]{peca_id} → {novo.value}[/] (por {responsavel})")
+    console.print(f"[green]{peca_id} → {novo.value}[/] (por {esc(responsavel)})")
 
 
 @app.command()
@@ -365,21 +316,8 @@ def publicado(
 
 @app.command()
 def pendencias():
-    """Mostra o que falta em dados/negocio.json e o estoque disponível."""
-    ag = _agente()
-    console.rule("Dados do negócio")
-    for k in ag.ctx.negocio_pendente:
-        console.print(f"[yellow]⏳ {k}[/]")
-    for k, v in ag.ctx.negocio_confirmado.items():
-        console.print(f"[green]✓ {k}[/]: {esc(str(v))}")
-    console.rule("Estoque")
-    disp = ag.ctx.estoque_disponivel
-    if not disp:
-        console.print("[yellow]Nenhuma unidade disponível em dados/estoque.json — ofertas de venda ficam bloqueadas.[/]")
-    for a in disp:
-        console.print(f"• {a.id}: {a.modelo} {a.armazenamento_gb or '?'}GB · bateria {a.saude_bateria_pct or '?'}% · preço {'aprovado' if a.preco_aprovado_brl else esc('[PENDENTE]')}")
-    console.rule("Configuração")
-    console.print(f"Texto: {ag.cfg.modelo_texto} · Imagem: {ag.cfg.modelo_imagem} · Chave OpenRouter: {'ok' if ag.cfg.api_key else '[red]FALTANDO[/]'}")
+    """Mostra o que falta em dados/negocio.json, o estoque disponível e a configuração."""
+    mostrar_pendencias(_agente())
 
 
 if __name__ == "__main__":
