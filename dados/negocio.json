@@ -1,0 +1,22 @@
+{
+  "_instrucoes": "Preencha somente com informações confirmadas pelo negócio. Campos null são tratados pelo agente como [PENDENTE]. Nunca preencha com suposições.",
+  "nome_loja": null,
+  "cidade_regiao_atendimento": null,
+  "whatsapp_comercial": null,
+  "instagram": null,
+  "facebook": null,
+  "retirada_entrega_logistica": null,
+  "garantia_oferecida": null,
+  "parcelamento": null,
+  "formas_pagamento_venda": null,
+  "troca_aceita": null,
+  "politica_devolucao": null,
+  "prazo_resposta_atendimento": null,
+  "criterios_compra_usados": null,
+  "modelos_captacao_foco": ["iPhone 13", "iPhone 14", "iPhone 15"],
+  "forma_pagamento_compra_usados": null,
+  "paleta_cores": null,
+  "logotipo": null,
+  "diferenciais_comprovados": [],
+  "observacoes": null
+}

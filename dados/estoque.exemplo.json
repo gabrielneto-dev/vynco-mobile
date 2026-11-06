@@ -1,0 +1,19 @@
+[
+  {
+    "id": "EXEMPLO-14-128-AZUL",
+    "modelo": "iPhone 14",
+    "armazenamento_gb": 128,
+    "cor": "Azul",
+    "condicao": "Tela sem riscos; leve marca de uso na lateral inferior esquerda",
+    "saude_bateria_pct": 88,
+    "pecas_trocadas": "Nenhuma (conferido em Ajustes > Geral > Sobre)",
+    "procedencia": "Comprado de pessoa física com nota fiscal original",
+    "garantia": null,
+    "preco_aprovado_brl": null,
+    "disponivel": true,
+    "fotos": ["dados/fotos/EXEMPLO-14-128-AZUL/frente.jpg"],
+    "verificado_por": "Nome do responsável",
+    "verificado_em": "2026-11-06",
+    "_nota": "ARQUIVO DE EXEMPLO. Copie para estoque.json só com unidades reais. Campos null viram [PENDENTE]."
+  }
+]

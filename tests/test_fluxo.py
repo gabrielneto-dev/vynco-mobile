@@ -1,0 +1,120 @@
+import pytest
+
+from agente.armazenamento import ErroRegistro
+from agente.llm import _sanitizar_schema, extrair_json
+from agente.modos import ErroAgente, agregar, ler_resultados_csv
+from agente.prompts import montar_sistema
+from agente.config import RAIZ
+from agente.schemas import Brief, Formato, Frente, Peca, Pilar, Publico, Etapa, StatusPeca
+
+from conftest import com_estoque, peca_exemplo
+
+
+def brief(**kw):
+    base = dict(objetivo="3 sinais de alerta", pilar=Pilar.atracao, frente=Frente.marca, publico=Publico.A, etapa=Etapa.descoberta, formato=Formato.reel)
+    base.update(kw)
+    return Brief(**base)
+
+
+def test_sistema_inclui_contexto_e_pendencias(agente):
+    s = montar_sistema(agente.ctx, "criar")
+    for nome in ("BRAND.md", "QUALITY_RULES.md", "CREATIVE_STANDARDS.md"):
+        assert nome in s
+    assert "nome_loja" in s  # pendente listado
+    assert "Nenhuma unidade disponível" in s
+
+
+def test_criar_salva_versao_e_markdown(agente):
+    r = agente.criar(brief())
+    assert r.id.startswith("P-") and r.id.endswith("-ATR-001") and r.versao == 1
+    assert r.caminho_md.exists()
+    md = r.caminho_md.read_text(encoding="utf-8")
+    for secao in ("## 1. Objetivo", "## 4. Ganchos", "## 8. Prompt de imagem", "## 10. Checklist", "## 11. Métrica"):
+        assert secao in md
+    assert agente.registro.entrada(r.id)["status"] == "revisao"
+
+
+def test_venda_sem_produto_exige_flag(agente):
+    with pytest.raises(ErroAgente, match="--produto"):
+        agente.criar(brief(pilar=Pilar.conversao, frente=Frente.venda))
+    assert agente.criar(brief(pilar=Pilar.conversao, frente=Frente.venda), generico=True).id
+
+
+def test_produto_inexistente_ou_indisponivel(agente):
+    with pytest.raises(ErroAgente, match="não existe"):
+        agente.criar(brief(pilar=Pilar.conversao, frente=Frente.venda, produto_id="X"))
+    com_estoque(agente, disponivel=False)
+    with pytest.raises(ErroAgente, match="indisponível"):
+        agente.criar(brief(pilar=Pilar.conversao, frente=Frente.venda, produto_id="U1"))
+
+
+def test_unidade_real_remove_prompt_e_bloqueia_imagem(agente):
+    com_estoque(agente)
+    r = agente.criar(brief(pilar=Pilar.conversao, frente=Frente.venda, produto_id="U1", formato=Formato.imagem))
+    assert r.peca.prompt_imagem is None
+    with pytest.raises(ErroAgente, match="fotos reais"):
+        agente.imagem_da_peca(r.id)
+
+
+def test_aprovacao_bloqueada_com_bloqueios_e_fluxo_ate_publicado(agente):
+    ruim = Peca.model_validate(peca_exemplo(legenda="Compra 100% segura!"))
+    agente.cliente.respostas[Peca] = ruim.model_dump(mode="json")
+    r = agente.criar(brief())
+    with pytest.raises(ErroRegistro, match="bloqueios"):
+        agente.registro.atualizar_status(r.id, StatusPeca.aprovado, "Gabriel")
+
+    agente.cliente.respostas.pop(Peca)
+    ok = agente.criar(brief())
+    with pytest.raises(ErroRegistro, match="responsável"):
+        agente.registro.atualizar_status(ok.id, StatusPeca.aprovado, "agente")
+    with pytest.raises(ErroRegistro):
+        agente.registro.atualizar_status(ok.id, StatusPeca.publicado, "Gabriel")
+    agente.registro.atualizar_status(ok.id, StatusPeca.aprovado, "Gabriel")
+    agente.registro.registrar_publicacao(ok.id, url="https://instagram.com/p/x", data="2026-11-10", campanha=None, criativo="V1", responsavel="Gabriel")
+    assert agente.registro.entrada(ok.id)["status"] == "publicado"
+
+
+def test_reverificar_grava_nova_versao_sem_llm(agente):
+    r = agente.criar(brief())
+    chamadas = len(agente.cliente.chamadas)
+    r2 = agente.reverificar(r.id)
+    assert r2.id == r.id and r2.versao == 2 and len(agente.cliente.chamadas) == chamadas
+    assert (agente.registro.dir_peca(r.id) / "v2.md").exists()
+
+
+def test_imagem_salva_arquivo_e_metadados(agente):
+    r = agente.criar(brief())
+    caminhos, _ = agente.imagem_da_peca(r.id, quantidade=2)
+    assert len(caminhos) == 2 and all(c.exists() and c.suffix == ".png" for c in caminhos)
+    assert caminhos[0].with_suffix(".json").exists()
+    assert len(agente.registro.entrada(r.id)["imagens"]) == 2
+
+
+def test_adaptar_cria_nova_peca_com_origem(agente):
+    r = agente.criar(brief())
+    a = agente.adaptar(r.id, Formato.carrossel)
+    assert a.id != r.id and a.brief.formato == Formato.carrossel and a.brief.origem == r.id
+
+
+def test_planejar_e_lote(agente):
+    cal = agente.planejar(semanas=1, publicacoes_semana=4)
+    assert cal.caminho.exists() and cal.caminho.with_suffix(".md").exists()
+    assert any("Estoque vazio" in a for a in cal.avisos)
+    resultados = list(agente.lote(cal.id))
+    assert len(resultados) == 4
+    assert isinstance(resultados[3][2], str) and resultados[3][2].startswith("pulado")
+
+
+def test_csv_e_agregados():
+    linhas, colunas = ler_resultados_csv(RAIZ / "exemplos" / "resultados_exemplo.csv")
+    assert len(linhas) == 4 and "salvamentos" in colunas
+    assert linhas[2]["investimento_brl"] == 150.0
+    ag = agregar(linhas)
+    assert ag["por_pilar"]["educacao"]["salvamentos"]["soma"] == 260
+
+
+def test_extrair_json_e_sanitizar():
+    assert extrair_json('Aqui está:\n```json\n{"a": 1}\n```') == '{"a": 1}'
+    s = _sanitizar_schema(Peca.model_json_schema())
+    texto = str(s)
+    assert "minItems" not in texto and "'additionalProperties': False" in texto
