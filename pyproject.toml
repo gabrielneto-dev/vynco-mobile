@@ -5,6 +5,7 @@ description = "Agente de conteúdo para loja de iPhones (OpenRouter + Nano Banan
 requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.27",
+    "pillow>=10.1",
     "pydantic>=2.7",
     "python-dotenv>=1.0",
     "questionary>=2.0",

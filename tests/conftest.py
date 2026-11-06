@@ -17,9 +17,16 @@ from agente.llm import ClienteOpenRouter
 from agente.modos import Agente
 from agente.schemas import Calendario, Peca, Revisao
 
-PNG_1PX = base64.b64encode(
-    bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000" "1f15c4890000000d49444154789c6360000002000154a24f5f0000000049454e44ae426082")
-).decode()
+def _png_valido() -> str:
+    import io
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 80), (180, 180, 185)).save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+PNG_1PX = _png_valido()
 
 
 def peca_exemplo(**alteracoes) -> dict:

@@ -24,6 +24,7 @@ from rich.table import Table
 from rich.text import Text
 
 from agente.armazenamento import ErroRegistro
+from agente.arte import ErroArte, montar_arte
 from agente.cadastro import (
     ARMAZENAMENTOS,
     CAMPOS_NEGOCIO,
@@ -362,6 +363,7 @@ def opcoes_menu(s: Sessao) -> list:
         ("📝  Criar peça", "criar", "Assistente passo a passo: pilar, formato, público, tema"),
         ("🔀  Adaptar peça para outro formato", "adaptar", "Ex.: carrossel → Stories, anúncio → Reel"),
         ("🎨  Gerar imagem de uma peça", "imagem", "Nano Banana a partir do prompt da peça"),
+        ("🧩  Montar arte final", "arte", "Aplica título, textos, CTA e marca sobre a imagem · PNG pronto para postar · grátis"),
         ("✨  Imagem livre", "imagem_livre", "Imagem conceitual a partir de um prompt seu"),
         Separador("─── Qualidade ───"),
         ("🔍  Revisar com IA", "revisar", "Auditoria de clareza, veracidade, marca e conformidade"),
@@ -532,6 +534,52 @@ def fluxo_imagem(s: Sessao, peca_id: str | None = None) -> None:
     caminhos = _gerar_imagem(s, peca_id, proporcao=proporcao, tamanho=tamanho, quantidade=quantidade, modelo=modelo)
     if caminhos and s.p.confirmar("Abrir a imagem agora?", padrao=True):
         abrir_arquivo(caminhos[0])
+
+
+def fluxo_arte(s: Sessao, peca_id: str | None = None) -> None:
+    titulo_secao("🧩 Montar arte final")
+    peca_id = peca_id or _ou_voltar(escolher_peca(s, "Qual peça?", filtro=lambda i: i["status"] != "arquivado"))
+    peca, brief, _, _ = s.ag.registro.carregar_modelos(peca_id)
+    entrada = s.ag.registro.entrada(peca_id)
+    gancho = s.p.escolher(
+        "Qual gancho vira o título?",
+        [(f"{i}. {g[:90]}", i) for i, g in enumerate(peca.ganchos, 1)],
+        padrao=1,
+    )
+    venda_real = brief.frente.value == "venda" and brief.produto_id
+    if venda_real:
+        opcoes = [("📷 Foto real da unidade", "auto", "Obrigatório para peças de unidade do estoque"), ("Fundo liso na cor da marca", "liso")]
+    elif entrada.get("imagens"):
+        opcoes = [("🖼 Imagem gerada (a mais recente)", "ia", "Recebe o selo 'Imagem ilustrativa'"), ("Fundo liso na cor da marca", "liso")]
+    else:
+        opcoes = [
+            ("Fundo liso na cor da marca", "liso", "Sem custo"),
+            ("🎨 Gerar uma imagem antes", "__gerar__", f"Nano Banana · {em_reais(estimar_imagem(s.modelo_imagem) or 0, s.ag.cfg.cotacao_dolar)}"),
+        ]
+    fundo = s.p.escolher("Fundo:", opcoes)
+    if fundo == "__gerar__":
+        fluxo_imagem(s, peca_id)
+        fundo = "ia"
+
+    try:
+        with console.status("Montando a arte...", spinner="dots"):
+            r = montar_arte(s.ag, peca_id, gancho=gancho, fundo=fundo)
+    except ErroArte as erro:
+        if "pendentes" not in str(erro):
+            raise
+        console.print(painel_erro(str(erro)))
+        if not s.p.confirmar("Gerar como RASCUNHO (com tarja, só para conferir o visual)?", padrao=True):
+            raise Voltar()
+        with console.status("Montando rascunho...", spinner="dots"):
+            r = montar_arte(s.ag, peca_id, gancho=gancho, fundo=fundo, rascunho=True)
+
+    tipo = "[yellow]RASCUNHO — não publicar[/]" if r.rascunho else "[green]pronta para postar (após aprovação)[/]"
+    console.print(f"🧩 {len(r.arquivos)} arquivo(s) · {tipo} · fundo: {r.fundo}")
+    console.print(f"[green]Pasta:[/] {esc(caminho_curto(r.pasta))}")
+    for a in r.avisos:
+        console.print(f"[{SUAVE}]• {esc(a)}[/]")
+    if s.p.confirmar("Abrir a pasta da arte?", padrao=True):
+        abrir_arquivo(r.pasta)
 
 
 def fluxo_imagem_livre(s: Sessao) -> None:
@@ -716,6 +764,9 @@ def fluxo_acoes_peca(s: Sessao, peca_id: str) -> None:
         ]
         if not venda_real:
             opcoes.append(("🎨  Gerar imagem", "imagem"))
+        opcoes.append(("🧩  Montar arte final", "arte", "PNG pronto para postar · grátis"))
+        if e.get("artes"):
+            opcoes.append(("📂  Abrir artes prontas", "abrir_artes"))
         if st != "arquivado":
             opcoes.append(("🗄  Arquivar", "arquivar"))
         opcoes.append(("↩  Voltar", "voltar"))
@@ -779,6 +830,10 @@ def _executar_acao_peca(s: Sessao, peca_id: str, acao: str) -> None:
         fluxo_revisar(s, peca_id)
     elif acao == "adaptar":
         fluxo_adaptar(s, peca_id)
+    elif acao == "arte":
+        fluxo_arte(s, peca_id)
+    elif acao == "abrir_artes":
+        abrir_arquivo(reg.dir / reg.entrada(peca_id)["artes"][-1]["pasta"])
     elif acao == "imagem":
         fluxo_imagem(s, peca_id)
 
@@ -1079,6 +1134,7 @@ FLUXOS: dict[str, Callable[[Sessao], None]] = {
     "adaptar": fluxo_adaptar,
     "imagem": fluxo_imagem,
     "imagem_livre": fluxo_imagem_livre,
+    "arte": fluxo_arte,
     "revisar": fluxo_revisar,
     "reverificar": fluxo_reverificar,
     "pecas": fluxo_pecas,

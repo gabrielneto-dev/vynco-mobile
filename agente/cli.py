@@ -275,6 +275,26 @@ def imagem_livre(
     mostrar_uso(ag)
 
 
+@app.command()
+def arte(
+    peca_id: str = typer.Argument(...),
+    gancho: int = typer.Option(1, help="Qual dos 3 ganchos vira o título."),
+    fundo: str = typer.Option("auto", help="auto | ia | liso (peça de unidade real usa sempre foto real)."),
+    rascunho: bool = typer.Option(False, help="Gera mesmo com [PENDENTE], com tarja de rascunho."),
+):
+    """Monta a arte final (PNG pronto para postar) — processamento local, sem custo."""
+    from agente.arte import ErroArte, montar_arte
+
+    ag = _agente()
+    try:
+        r = montar_arte(ag, peca_id, gancho=gancho, fundo=fundo, rascunho=rascunho)
+    except (ErroArte, ErroRegistro) as erro:
+        _falhar(str(erro))
+    console.print(f"[green]{len(r.arquivos)} arquivo(s){' (RASCUNHO)' if r.rascunho else ''}:[/] {esc(caminho_curto(r.pasta))}")
+    for a in r.avisos:
+        console.print(f"[dim]• {esc(a)}[/]")
+
+
 # ====================================================================== REGISTRO / FLUXO
 @app.command()
 def listar(

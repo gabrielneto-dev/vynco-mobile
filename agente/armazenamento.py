@@ -197,6 +197,15 @@ class Registro:
             self._gravar()
         return caminho
 
+    # ------------------------------------------------------------------ artes finais
+    def registrar_arte(self, peca_id: str, pasta: Path, *, rascunho: bool) -> None:
+        entrada = self.entrada(peca_id)
+        rel = str(pasta.relative_to(self.dir))
+        artes = [a for a in entrada.get("artes", []) if a["pasta"] != rel]
+        artes.append({"pasta": rel, "rascunho": rascunho, "em": _agora()})
+        entrada["artes"] = artes
+        self._gravar()
+
     # ------------------------------------------------------------------ calendários
     def novo_id_calendario(self) -> str:
         dia = datetime.now().strftime("%Y%m%d")
