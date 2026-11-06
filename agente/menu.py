@@ -25,6 +25,7 @@ from rich.text import Text
 
 from agente.armazenamento import ErroRegistro
 from agente.arte import ErroArte, montar_arte
+from agente.backup import configurar_destino, destino_configurado, fazer_backup, sugerir_destino, tempo_relativo, ultimo_backup
 from agente.metricas import importar as importar_metricas
 from agente.metricas import salvar as salvar_metricas
 from agente.cadastro import (
@@ -335,7 +336,9 @@ def cabecalho(s: Sessao) -> Panel:
         "Estoque", f"[green]{disp} unidade(s)[/]" if disp else "[yellow]vazio · vendas bloqueadas[/]",
     )
     resumo = "  ".join(f"{selo_status(st)} {cont[st]}" for st in ORDEM_STATUS if cont.get(st)) or f"[{SUAVE}]nenhuma ainda[/]"
-    g.add_row("Peças", resumo, "", "")
+    destino = destino_configurado()
+    backup = f"[yellow]não configurado[/]" if not destino else tempo_relativo(ultimo_backup(destino))
+    g.add_row("Peças", resumo, "Backup", backup)
 
     titulo = Text.from_markup(f"[bold {DESTAQUE}]📱  Agente de Conteúdo[/]  [{SUAVE}]·  Loja de iPhones[/]")
     lema = Text.from_markup(f"[italic {SUAVE}]Comprar e vender iPhones com mais informação, segurança e negociação justa.[/]")
@@ -376,6 +379,7 @@ def opcoes_menu(s: Sessao) -> list:
         ("📊  Analisar resultados", "analisar", "Compara desempenho a partir de um CSV de métricas"),
         Separador("─── Sistema ───"),
         (f"🧠  Modelo de texto: {nome_modelo(s.modelo_texto)}", "modelo", "Sonnet para peças finais, Haiku para rascunhos"),
+        ("💾  Backup", "backup", "Cópia de peças, artes, fotos e dados numa pasta sincronizada (OneDrive)"),
         ("🧰  Pendências e configuração", "config", "Dados do negócio, estoque, modelo de imagem, pastas"),
         ("🚪  Sair", "sair"),
     ]
@@ -939,6 +943,37 @@ def fluxo_modelo(s: Sessao) -> None:
     console.print(f"[green]Modelo de texto: {esc(nome_modelo(escolha))}[/] [dim](só nesta sessão; para mudar o padrão, edite MODELO_TEXTO no .env)[/]")
 
 
+def _executar_backup(s: Sessao) -> None:
+    with console.status("Fazendo backup...", spinner="dots"):
+        r = fazer_backup(s.ag.cfg)
+    console.print(f"[green]💾 Backup ok:[/] {r.copiados} arquivo(s) novo(s) ou alterado(s) de {r.conferidos} · [{SUAVE}]{esc(str(r.destino))}[/]")
+
+
+def fluxo_backup(s: Sessao) -> None:
+    titulo_secao("💾 Backup")
+    destino = destino_configurado()
+    console.print(
+        f"Pasta: [bold]{esc(str(destino)) if destino else '[yellow]não configurada[/]'}[/]  ·  último: {tempo_relativo(ultimo_backup(destino))}\n"
+        f"[{SUAVE}]Copia saida/ (peças, artes, imagens) e dados/ (negócio, estoque, fotos, logo). "
+        "O .env com a chave da API fica de fora. Roda sozinho ao sair do menu.[/]"
+    )
+    opcoes = []
+    if destino:
+        opcoes.append(("💾  Fazer backup agora", "agora"))
+    sugestao = sugerir_destino()
+    if sugestao and sugestao != destino:
+        opcoes.append((f"☁  Usar {sugestao}", "sugestao", "Pasta sincronizada encontrada neste computador"))
+    opcoes += [("📁  Escolher outra pasta", "outra"), ("↩  Voltar", "__voltar__")]
+    acao = _ou_voltar(s.p.escolher("O que fazer?", opcoes))
+    if acao in ("sugestao", "outra"):
+        alvo = sugestao if acao == "sugestao" else Path(s.p.texto("Caminho da pasta de backup:", obrigatorio=True).strip('"'))
+        configurar_destino(alvo)
+        console.print(f"[green]✓ Backup configurado em[/] {esc(str(alvo))}")
+    _executar_backup(s)
+    if s.p.confirmar("Abrir a pasta de backup?", padrao=False):
+        abrir_arquivo(destino_configurado())
+
+
 def fluxo_config(s: Sessao) -> None:
     titulo_secao("🧰 Pendências e configuração")
     mostrar_pendencias(s.ag)
@@ -1203,6 +1238,7 @@ FLUXOS: dict[str, Callable[[Sessao], None]] = {
     "metricas": fluxo_metricas,
     "modelo": fluxo_modelo,
     "config": fluxo_config,
+    "backup": fluxo_backup,
 }
 
 
@@ -1231,6 +1267,11 @@ def executar_menu(sessao: Sessao | None = None) -> None:
             console.print(painel_erro(str(erro)))
         s.p.pausar()
 
+    if destino_configurado():
+        try:
+            _executar_backup(s)
+        except OSError as erro:
+            console.print(f"[yellow]Backup não concluído: {esc(str(erro))}[/]")
     custo = s.ag.cliente.uso_acumulado["custo_usd"]
     console.print(
         Panel(

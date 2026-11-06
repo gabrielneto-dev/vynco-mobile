@@ -106,3 +106,9 @@ def com_estoque(agente: Agente, **campos) -> Agente:
     (agente.cfg.dir_dados / "estoque.json").write_text(json.dumps([unidade]), encoding="utf-8")
     agente.ctx = carregar_contexto(agente.cfg)
     return agente
+
+
+@pytest.fixture(autouse=True)
+def sem_backup_real(monkeypatch):
+    """Nenhum teste pode copiar dados de teste para a pasta de backup real do usuário."""
+    monkeypatch.delenv("BACKUP_DIR", raising=False)
