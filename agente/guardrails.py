@@ -61,13 +61,6 @@ _REGRAS_FIXAS: list[tuple[str, Nivel, str, str]] = [
         "Urgência/escassez só com confirmação real e aprovada.",
     ),
     (
-        r"(autorizad[ao]|oficial|certificad[ao]|parceir[ao]|credenciad[ao]|homologad[ao])s?\s+(pela\s+|da\s+)?apple"
-        r"|apple\s+(autoriz|oficial|certific|parceir|premium reseller|authorized)|revend(a|edor) oficial",
-        Nivel.bloqueio,
-        "vinculo_apple",
-        "Vínculo/certificação oficial da Apple não pode ser alegado sem documentação.",
-    ),
-    (
         r"\b\d{15}\b|imei\s*[:#]?\s*\d{6,}",
         Nivel.bloqueio,
         "imei_exposto",
@@ -111,7 +104,23 @@ _REGRAS_POR_FRASE: list[tuple[str, Nivel, str, str]] = [
         "mencao_desbloqueio",
         "Confirme que o texto orienta o PRÓPRIO dono a sair da conta, sem ensinar desbloqueio.",
     ),
+    (
+        # Só alegações sobre a própria loja. "Página oficial da Apple" (referência) e
+        # "Não somos assistência autorizada Apple" (frase negativa) são permitidas.
+        r"(autorizad[ao]|certificad[ao]|credenciad[ao]|homologad[ao])s?\s+(pela\s+|da\s+)?apple"
+        r"|\b(somos|loja|revenda|revendedor[a]?|assist[eê]ncia|parceir[oa]|distribuidor[a]?)\s+(\w+\s+){0,2}"
+        r"(oficial|autorizad\w*|certificad\w*|credenciad\w*)\s+(pela\s+|da\s+)?apple"
+        r"|apple\s+(authorized|premium reseller|premium partner)|revend(a|edor)\w* oficial",
+        Nivel.bloqueio,
+        "vinculo_apple",
+        "Vínculo/certificação oficial da Apple não pode ser alegado sem documentação.",
+    ),
 ]
+# "Tela sem riscos" = sem arranhões (condição física), não promessa de "sem risco". Removido antes das regras fixas.
+_RE_RISCO_FISICO = re.compile(
+    r"\b(tela|telas|vidro|traseira|tampa|lentes?|laterais|lateral|carca[çc]a|c[aâ]meras?|corpo|bordas?|moldura|display)"
+    r"\s+(\w+\s+){0,3}?sem (nenhum |qualquer )?(riscos?|arranh\w*)"
+)
 _RE_NEGACAO = re.compile(r"\b(nunca|jamais|n[aã]o|nem|sem|nenhum[a]?|momento algum|de forma alguma|de jeito nenhum)\b")
 _RE_FRASES = re.compile(r"[^.!?\n]+")
 
@@ -142,10 +151,11 @@ def verificar_texto(
     t = texto.lower()
     achados: list[Achado] = []
 
+    t_regras = _RE_RISCO_FISICO.sub(" ", t)
     for padrao, nivel, regra, msg in _REGRAS_FIXAS:
-        m = re.search(padrao, t)
+        m = re.search(padrao, t_regras)
         if m:
-            achados.append(Achado(nivel, regra, msg, _trecho(t, m)))
+            achados.append(Achado(nivel, regra, msg, _trecho(t_regras, m)))
 
     for frase in _RE_FRASES.findall(t):
         negativa = bool(_RE_NEGACAO.search(frase))

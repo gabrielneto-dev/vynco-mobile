@@ -103,6 +103,12 @@ def test_planejar_e_lote(agente):
     resultados = list(agente.lote(cal.id))
     assert len(resultados) == 4
     assert isinstance(resultados[3][2], str) and resultados[3][2].startswith("pulado")
+    # Retomada: itens já gerados não são cobrados de novo (bug real ao interromper um lote).
+    chamadas = len(agente.cliente.chamadas)
+    retomada = list(agente.lote(cal.id))
+    assert all(isinstance(r, str) for _, _, r in retomada[:3]) and retomada[0][2].startswith("já gerado")
+    assert len(agente.cliente.chamadas) == chamadas
+    assert len(list(agente.lote(cal.id, refazer=True, limite=1))) == 1
 
 
 def test_csv_e_agregados():

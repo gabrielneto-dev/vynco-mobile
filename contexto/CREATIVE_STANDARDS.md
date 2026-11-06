@@ -39,6 +39,7 @@ Escreva o prompt em **inglês** (melhor aderência do modelo), como uma descriç
 4. **Iluminação e estilo:** ex. "soft studio lighting, clean minimal tech aesthetic, neutral light-gray background".
 5. **Proporção:** informe a proporção da peça (o código também envia o `aspect_ratio`).
 6. **Texto na imagem:** prefira **sem texto** (o texto é aplicado na edição). Se necessário, no máximo um título curto entre aspas.
+   O mesmo vale para **ícones, selos, setas e elementos de interface**: gere só a cena (aparelho, superfície, luz) e reserve o espaço; esses elementos entram na edição, onde podem ser ajustados e mantidos consistentes entre peças.
 7. **Restrições explícitas:** "no Apple logo emphasis, no brand logos, no visible damage, no cracked screens, no people's faces unless specified, no watermark".
 
 Proibido em prompts: avarias inexistentes, logotipos de terceiros como elemento de marca, selos de "oficial/autorizado", rostos de pessoas reais, imitação de criativos de concorrentes.

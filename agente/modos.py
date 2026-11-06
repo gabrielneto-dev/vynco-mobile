@@ -167,10 +167,17 @@ class Agente:
                 avisos.append(f"Estoque vazio, mas há itens de conversão ({vendas}); só produza-os como conteúdo genérico ou após cadastrar unidades.")
         return avisos
 
-    def lote(self, cal_ref: str, *, limite: int | None = None, generico_vendas: bool = False, modelo: str | None = None):
-        """Gera peças para os itens de um calendário. Rende (n, item, ResultadoPeca | str de pulo/erro)."""
+    def lote(self, cal_ref: str, *, limite: int | None = None, generico_vendas: bool = False, refazer: bool = False, modelo: str | None = None):
+        """Gera peças para os itens de um calendário. Rende (n, item, ResultadoPeca | str de pulo/erro).
+
+        Itens que já viraram peça (origem "C-...#n") são pulados, então um lote interrompido pode ser retomado.
+        """
         cal_id, cal = self.registro.carregar_calendario(cal_ref)
+        ja_gerados = {p["origem"]: p["id"] for p in self.registro.listar() if p.get("origem")}
         for n, item in enumerate(cal.itens[:limite] if limite else cal.itens, 1):
+            if not refazer and f"{cal_id}#{n}" in ja_gerados:
+                yield n, item, f"já gerado: {ja_gerados[f'{cal_id}#{n}']}"
+                continue
             brief = Brief(
                 objetivo=f"{item.tema} — {item.justificativa}",
                 pilar=item.pilar,

@@ -9,7 +9,7 @@ from typing import Optional
 
 import typer
 from rich.console import Console
-from rich.markup import escape as e
+from rich.markup import escape as esc
 from rich.table import Table
 
 from agente.guardrails import Achado, Nivel
@@ -51,7 +51,7 @@ def _agente() -> Agente:
 
 
 def _falhar(msg: str) -> None:
-    console.print(f"[bold red]Erro:[/] {e(msg)}")
+    console.print(f"[bold red]Erro:[/] {esc(msg)}")
     raise typer.Exit(1)
 
 
@@ -65,7 +65,7 @@ def _mostrar_achados(achados: list[Achado]) -> None:
     t.add_column("Mensagem")
     t.add_column("Trecho", overflow="fold")
     for a in achados:
-        t.add_row(f"[{COR[a.nivel]}]{a.nivel.value}[/]", a.regra, e(a.mensagem), e(a.trecho))
+        t.add_row(f"[{COR[a.nivel]}]{a.nivel.value}[/]", a.regra, esc(a.mensagem), esc(a.trecho))
     console.print(t)
 
 
@@ -74,8 +74,8 @@ def _mostrar_peca(r: ResultadoPeca) -> None:
     console.print(f"[dim]{r.brief.pilar.value} · {r.brief.frente.value} · {r.brief.formato.value} · público {r.brief.publico.value} · {r.brief.etapa.value}[/]")
     console.print("[bold]Ganchos:[/]")
     for i, g in enumerate(r.peca.ganchos, 1):
-        console.print(f"  {i}. {e(g)}")
-    console.print(f"[bold]CTA:[/] {e(r.peca.cta)}")
+        console.print(f"  {i}. {esc(g)}")
+    console.print(f"[bold]CTA:[/] {esc(r.peca.cta)}")
     _mostrar_achados(r.achados)
     console.print(f"[green]Salvo em:[/] {r.caminho_md}")
 
@@ -112,7 +112,7 @@ def planejar(
     for col in ("#", "Data", "Pilar", "Frente", "Formato", "Púb.", "Tema"):
         t.add_column(col, overflow="fold")
     for n, i in enumerate(r.calendario.itens, 1):
-        t.add_row(str(n), i.data, i.pilar.value, i.frente.value, i.formato.value, i.publico.value, e(i.tema))
+        t.add_row(str(n), i.data, i.pilar.value, i.frente.value, i.formato.value, i.publico.value, esc(i.tema))
     console.print(t)
 
     d = Table(title="Distribuição por pilar")
@@ -122,7 +122,7 @@ def planejar(
         d.add_row(p, str(v["itens"]), f"{v['real_pct']}%", f"{v['alvo_pct']}%")
     console.print(d)
     for a in r.avisos:
-        console.print(f"[yellow]⚠ {e(a)}[/]")
+        console.print(f"[yellow]⚠ {esc(a)}[/]")
     console.print(f"[green]Salvo em:[/] {r.caminho} (e .md)")
     console.print(f"[dim]Para gerar as peças: python -m agente lote {r.id}[/]")
     _uso(ag)
@@ -181,22 +181,23 @@ def lote(
     calendario: str = typer.Argument(..., help="ID do calendário (C-...) ou caminho do JSON."),
     limite: Optional[int] = typer.Option(None, help="Gera só os N primeiros itens."),
     generico_vendas: bool = typer.Option(False, help="Gera itens de venda como conteúdo genérico, sem unidade."),
+    refazer: bool = typer.Option(False, help="Gera de novo itens que já viraram peça."),
     modelo: Optional[str] = typer.Option(None),
 ):
-    """Gera as peças de todos os itens de um calendário."""
+    """Gera as peças de todos os itens de um calendário (retoma de onde parou)."""
     ag = _agente()
     t = Table(title=f"Lote {calendario}")
     for col in ("#", "Tema", "Resultado", "Bloqueios"):
         t.add_column(col, overflow="fold")
     try:
-        for n, item, res in ag.lote(calendario, limite=limite, generico_vendas=generico_vendas, modelo=modelo):
+        for n, item, res in ag.lote(calendario, limite=limite, generico_vendas=generico_vendas, refazer=refazer, modelo=modelo):
             if isinstance(res, ResultadoPeca):
                 bloq = sum(1 for a in res.achados if a.nivel == Nivel.bloqueio)
-                t.add_row(str(n), e(item.tema), f"[green]{res.id}[/]", f"[red]{bloq}[/]" if bloq else "0")
-                console.print(f"[green]✓[/] {n}. {e(item.tema)} → {res.id}")
+                t.add_row(str(n), esc(item.tema), f"[green]{res.id}[/]", f"[red]{bloq}[/]" if bloq else "0")
+                console.print(f"[green]✓[/] {n}. {esc(item.tema)} → {res.id}")
             else:
-                t.add_row(str(n), e(item.tema), f"[yellow]{e(res)}[/]", "-")
-                console.print(f"[yellow]•[/] {n}. {e(item.tema)} → {e(res)}")
+                t.add_row(str(n), esc(item.tema), f"[yellow]{esc(res)}[/]", "-")
+                console.print(f"[yellow]•[/] {n}. {esc(item.tema)} → {esc(res)}")
     except ErroRegistro as e:
         _falhar(str(e))
     console.print(t)
@@ -240,9 +241,9 @@ def revisar(
         rev, achados, caminho = _executar(lambda: ag.revisar(alvo, contexto_extra=contexto, modelo=modelo))
     cor = {"bloqueado": "red", "ajustes_necessarios": "yellow"}.get(rev.veredito, "green")
     console.rule(f"Veredito: [{cor}]{rev.veredito}[/]")
-    console.print(e(rev.resumo))
+    console.print(esc(rev.resumo))
     for p in rev.problemas:
-        console.print(f"• {e('[' + p.severidade + ']')} [bold]{e(p.categoria)}[/]: “{e(p.trecho)}” → {e(p.sugestao)}")
+        console.print(f"• {esc('[' + p.severidade + ']')} [bold]{esc(p.categoria)}[/]: “{esc(p.trecho)}” → {esc(p.sugestao)}")
     _mostrar_achados(achados)
     console.print(f"[green]Salvo em:[/] {caminho}")
     _uso(ag)
@@ -259,11 +260,11 @@ def analisar(
     with console.status("Analisando resultados..."):
         an, _, caminho = _executar(lambda: ag.analisar(csv_path, modelo=modelo))
     console.rule("Análise")
-    console.print(e(an.resumo))
+    console.print(esc(an.resumo))
     if not an.base_suficiente:
         console.print("[yellow]⚠ Base de dados insuficiente para conclusões firmes.[/]")
     for r in an.recomendacoes:
-        console.print(f"• {e('[' + r.prioridade + ']')} {e(r.acao)} — [dim]{e(r.motivo)}[/]")
+        console.print(f"• {esc('[' + r.prioridade + ']')} {esc(r.acao)} — [dim]{esc(r.motivo)}[/]")
     console.print(f"[green]Salvo em:[/] {caminho}")
     _uso(ag)
 
@@ -275,7 +276,7 @@ def _gerar_imagem_peca(ag: Agente, peca_id, proporcao, quantidade, modelo, taman
             lambda: ag.imagem_da_peca(peca_id, proporcao=proporcao, quantidade=quantidade, modelo=modelo, tamanho=tamanho, referencias=referencias)
         )
     for a in achados:
-        console.print(f"[{COR[a.nivel]}]{a.nivel.value}: {e(a.mensagem)}[/]")
+        console.print(f"[{COR[a.nivel]}]{a.nivel.value}: {esc(a.mensagem)}[/]")
     for c in caminhos:
         console.print(f"[green]Imagem:[/] {c}")
     console.print("[dim]Imagem gerada por IA: só para conceitos/campanhas gerais, nunca para representar a unidade vendida.[/]")
@@ -310,7 +311,7 @@ def imagem_livre(
     with console.status("Gerando imagem com Nano Banana..."):
         caminhos, achados = _executar(lambda: ag.imagem_livre(prompt, proporcao=proporcao, quantidade=quantidade, modelo=modelo, tamanho=tamanho, referencias=referencia))
     for a in achados:
-        console.print(f"[{COR[a.nivel]}]{a.nivel.value}: {e(a.mensagem)}[/]")
+        console.print(f"[{COR[a.nivel]}]{a.nivel.value}: {esc(a.mensagem)}[/]")
     for c in caminhos:
         console.print(f"[green]Imagem:[/] {c}")
     _uso(ag)
@@ -330,7 +331,7 @@ def listar(
         t.add_column(col, overflow="fold")
     for i in itens:
         b = i.get("bloqueios", 0)
-        t.add_row(i["id"], str(i["versao_atual"]), i["status"], i["pilar"], i["frente"], i["formato"], f"[red]{b}[/]" if b else "0", e(i["titulo"]))
+        t.add_row(i["id"], str(i["versao_atual"]), i["status"], i["pilar"], i["frente"], i["formato"], f"[red]{b}[/]" if b else "0", esc(i["titulo"]))
     console.print(t)
 
 
@@ -370,13 +371,13 @@ def pendencias():
     for k in ag.ctx.negocio_pendente:
         console.print(f"[yellow]⏳ {k}[/]")
     for k, v in ag.ctx.negocio_confirmado.items():
-        console.print(f"[green]✓ {k}[/]: {e(str(v))}")
+        console.print(f"[green]✓ {k}[/]: {esc(str(v))}")
     console.rule("Estoque")
     disp = ag.ctx.estoque_disponivel
     if not disp:
         console.print("[yellow]Nenhuma unidade disponível em dados/estoque.json — ofertas de venda ficam bloqueadas.[/]")
     for a in disp:
-        console.print(f"• {a.id}: {a.modelo} {a.armazenamento_gb or '?'}GB · bateria {a.saude_bateria_pct or '?'}% · preço {'aprovado' if a.preco_aprovado_brl else e('[PENDENTE]')}")
+        console.print(f"• {a.id}: {a.modelo} {a.armazenamento_gb or '?'}GB · bateria {a.saude_bateria_pct or '?'}% · preço {'aprovado' if a.preco_aprovado_brl else esc('[PENDENTE]')}")
     console.rule("Configuração")
     console.print(f"Texto: {ag.cfg.modelo_texto} · Imagem: {ag.cfg.modelo_imagem} · Chave OpenRouter: {'ok' if ag.cfg.api_key else '[red]FALTANDO[/]'}")
 

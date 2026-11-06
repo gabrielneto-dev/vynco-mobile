@@ -14,9 +14,20 @@ def test_promessa_absoluta_bloqueia():
     assert regras("Compra 100% segura e sem riscos!")["promessa_absoluta"] == Nivel.bloqueio
 
 
+def test_tela_sem_riscos_e_condicao_fisica_nao_promessa():
+    # Falso positivo encontrado no teste real do fluxo de venda (dado vindo do estoque).
+    assert "promessa_absoluta" not in regras("Tela sem riscos; leve marca de uso na lateral.")
+    assert "promessa_absoluta" not in regras("Traseira e câmeras sem nenhum arranhão.")
+    assert regras("Compre sem riscos com a gente")["promessa_absoluta"] == Nivel.bloqueio
+
+
 def test_vinculo_apple_bloqueia():
     assert regras("Somos revenda autorizada Apple")["vinculo_apple"] == Nivel.bloqueio
     assert regras("Loja certificada pela Apple")["vinculo_apple"] == Nivel.bloqueio
+    assert regras("Somos parceiro oficial da Apple")["vinculo_apple"] == Nivel.bloqueio
+    # Falsos positivos encontrados no teste real (lote) e permitidos pelo BRAND.md:
+    assert "vinculo_apple" not in regras("Confira a compatibilidade na página oficial da Apple.")
+    assert "vinculo_apple" not in regras("Não somos assistência autorizada Apple.")
 
 
 def test_urgencia_exige_revisao_mas_nao_perca_dinheiro_e_ok():
