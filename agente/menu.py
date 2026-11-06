@@ -24,6 +24,23 @@ from rich.table import Table
 from rich.text import Text
 
 from agente.armazenamento import ErroRegistro
+from agente.cadastro import (
+    ARMAZENAMENTOS,
+    CAMPOS_NEGOCIO,
+    MODELOS_IPHONE,
+    PALETA_PROVISORIA,
+    ErroCadastro,
+    adicionar_aparelho,
+    adicionar_fotos,
+    atualizar_aparelho,
+    definir_campo,
+    importar_logo,
+    ler_estoque,
+    ler_negocio,
+    marcar_vendido,
+    resumo_negocio,
+    validar_hex,
+)
 from agente.contexto import carregar_contexto
 from agente.guardrails import Nivel, bloqueio_imagem
 from agente.llm import ErroLLM
@@ -303,8 +320,15 @@ def cabecalho(s: Sessao) -> Panel:
         "OpenRouter", "[green]✓ chave configurada[/]" if ag.cfg.api_key else "[red]✗ chave faltando no .env[/]",
         "Sessão", f"{em_reais(custo, ag.cfg.cotacao_dolar)} [{SUAVE}](US$ {custo:.4f})[/]",
     )
+    preenchidos, total, essenciais = resumo_negocio(ag.cfg)
+    if essenciais:
+        negocio = f"[yellow]{preenchidos}/{total} preenchidos · falta: {esc(', '.join(essenciais[:2]))}{'…' if len(essenciais) > 2 else ''}[/]"
+    elif pend:
+        negocio = f"[green]essenciais ok[/] [{SUAVE}]· {preenchidos}/{total} preenchidos[/]"
+    else:
+        negocio = "[green]✓ completo[/]"
     g.add_row(
-        "Negócio", f"[yellow]{pend} informações pendentes[/]" if pend else "[green]✓ completo[/]",
+        "Negócio", negocio,
         "Estoque", f"[green]{disp} unidade(s)[/]" if disp else "[yellow]vazio · vendas bloqueadas[/]",
     )
     resumo = "  ".join(f"{selo_status(st)} {cont[st]}" for st in ORDEM_STATUS if cont.get(st)) or f"[{SUAVE}]nenhuma ainda[/]"
@@ -322,7 +346,15 @@ def cabecalho(s: Sessao) -> Panel:
 
 
 def opcoes_menu(s: Sessao) -> list:
+    _, _, essenciais = resumo_negocio(s.ag.cfg)
     return [
+        Separador("─── Meu negócio ───"),
+        (
+            "🏪  Dados do negócio" + ("  ← comece por aqui" if essenciais else ""),
+            "negocio",
+            "Nome, cidade, WhatsApp, garantia, paleta, logo… sem editar JSON",
+        ),
+        ("📱  Estoque de aparelhos", "estoque", "Cadastrar unidades com fotos, editar, marcar como vendida"),
         Separador("─── Planejamento ───"),
         ("📅  Planejar calendário", "planejar", "Monta a pauta respeitando pilares, frentes e estoque"),
         ("📦  Gerar peças de um calendário", "lote", "Cria as peças de um calendário salvo (retoma de onde parou)"),
@@ -817,7 +849,230 @@ def fluxo_config(s: Sessao) -> None:
         abrir_arquivo(s.ag.cfg.dir_saida)
 
 
+def _mostrar_valor(valor) -> str:
+    if valor in (None, "", []):
+        return "[yellow]⏳ pendente[/]"
+    if isinstance(valor, list):
+        return esc("; ".join(map(str, valor)))
+    if isinstance(valor, dict):
+        return "  ".join(f"[{v}]■[/] {esc(k)} {esc(v)}" for k, v in valor.items())
+    return esc(str(valor))
+
+
+def fluxo_negocio(s: Sessao) -> None:
+    alterou = False
+    while True:
+        s.limpar()
+        titulo_secao("🏪 Dados do negócio")
+        dados = ler_negocio(s.ag.cfg)
+        t = Table(box=box.ROUNDED, header_style=SUAVE, expand=True)
+        t.add_column("Campo", no_wrap=True)
+        t.add_column("Valor", ratio=1, overflow="fold")
+        for c in CAMPOS_NEGOCIO:
+            t.add_row(("[bold]" if c.essencial else "") + esc(c.rotulo) + ("[/]" if c.essencial else ""), _mostrar_valor(dados.get(c.chave)))
+        console.print(t)
+        console.print(f"[{SUAVE}]Em negrito: essenciais para as peças saírem sem [PENDENTE]. Preencha só o que é confirmado.[/]".replace("[PENDENTE]", esc("[PENDENTE]")))
+
+        opcoes = [
+            (("✅ " if dados.get(c.chave) not in (None, "", []) else "⏳ ") + c.rotulo, c.chave, c.ajuda)
+            for c in CAMPOS_NEGOCIO
+        ]
+        escolha = s.p.escolher("Qual campo editar?", opcoes + [Separador("───"), ("✔  Concluir", "__fim__")])
+        if escolha == "__fim__":
+            break
+        campo = next(c for c in CAMPOS_NEGOCIO if c.chave == escolha)
+        atual = dados.get(campo.chave)
+        console.print(f"[{SUAVE}]{esc(campo.ajuda)}[/]")
+        try:
+            if campo.tipo == "paleta":
+                base = atual or PALETA_PROVISORIA
+                valor = {
+                    k: s.p.texto(f"Cor de {k} (#RRGGBB):", padrao=base[k], validar=lambda v: True if validar_hex(v) else "Use o formato #RRGGBB.")
+                    for k in ("fundo", "texto", "destaque")
+                }
+                definir_campo(s.ag.cfg, campo.chave, valor)
+            elif campo.tipo == "logo":
+                importar_logo(s.ag.cfg, Path(s.p.caminho("Arquivo do logotipo (PNG/JPG):")))
+            else:
+                padrao = "; ".join(atual) if isinstance(atual, list) else (atual or "")
+                valor = s.p.texto(f"{campo.rotulo} (vazio = pendente):", padrao=padrao)
+                definir_campo(s.ag.cfg, campo.chave, valor)
+            alterou = True
+        except (ErroCadastro, ValueError) as erro:
+            console.print(painel_erro(str(erro)))
+            s.p.pausar()
+
+    s.recarregar()
+    revisao = [p for p in s.ag.registro.listar() if p["status"] == "revisao"]
+    if alterou and revisao and s.p.confirmar(f"Reverificar as {len(revisao)} peças em revisão com os dados novos? (grátis)", padrao=True):
+        with console.status("Reverificando...", spinner="dots"):
+            res = s.ag.reverificar_todas()
+        ok = sum(1 for _, r in res if isinstance(r, ResultadoPeca))
+        console.print(f"[green]✓ {ok} peça(s) reverificadas.[/] [{SUAVE}]As peças novas já saem com os dados reais; as antigas mantêm o texto original — gere de novo ou adapte se quiser atualizar.[/]")
+
+
+def _tabela_estoque(itens: list[dict]) -> Table:
+    t = Table(box=box.ROUNDED, header_style=SUAVE, expand=True, title=f"Estoque ({sum(1 for i in itens if i.get('disponivel'))} disponíveis)")
+    for col, kw in (("ID", {"no_wrap": True, "style": f"bold {DESTAQUE}"}), ("Aparelho", {}), ("Bateria", {"justify": "right"}), ("Preço", {}), ("Fotos", {"justify": "right"}), ("Situação", {})):
+        t.add_column(col, **kw)
+    for i in itens:
+        preco = f"R$ {i['preco_aprovado_brl']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if i.get("preco_aprovado_brl") else f"[yellow]{esc('[PENDENTE]')}[/]"
+        t.add_row(
+            esc(i["id"]),
+            esc(f"{i['modelo']} {i.get('armazenamento_gb') or '?'}GB {i.get('cor') or ''}"),
+            f"{i['saude_bateria_pct']}%" if i.get("saude_bateria_pct") is not None else "?",
+            preco,
+            str(len(i.get("fotos", []))),
+            "[green]disponível[/]" if i.get("disponivel") else f"[{SUAVE}]vendido {i.get('vendido_em', '')}[/]",
+        )
+    return t
+
+
+def _validar_bateria(v: str):
+    if not v.strip():
+        return True
+    return True if v.strip().isdigit() and 0 <= int(v) <= 100 else "Número de 0 a 100 (ou vazio se não conferiu)."
+
+
+def _validar_preco(v: str):
+    if not v.strip():
+        return True
+    try:
+        float(v.replace(".", "").replace(",", ".")) if "," in v else float(v)
+        return True
+    except ValueError:
+        return "Ex.: 3299 ou 3.299,90 (ou vazio para pendente)."
+
+
+def _preco(v: str) -> float | None:
+    v = v.strip()
+    if not v:
+        return None
+    return float(v.replace(".", "").replace(",", ".")) if "," in v else float(v)
+
+
+def _pedir_fotos(s: Sessao) -> list[Path]:
+    fotos: list[Path] = []
+    while s.p.confirmar("Adicionar uma foto real do aparelho?" if not fotos else "Adicionar outra foto?", padrao=not fotos):
+        fotos.append(Path(s.p.caminho("Arquivo da foto (JPG/PNG):")))
+    return fotos
+
+
+def fluxo_estoque(s: Sessao) -> None:
+    while True:
+        s.limpar()
+        titulo_secao("📱 Estoque de aparelhos")
+        itens = ler_estoque(s.ag.cfg)
+        if itens:
+            console.print(_tabela_estoque(itens))
+        else:
+            console.print("[yellow]Nenhum aparelho cadastrado. Peças de venda ficam bloqueadas até haver unidades reais.[/]")
+        disponiveis = [i for i in itens if i.get("disponivel")]
+        opcoes = [("➕  Cadastrar aparelho", "novo", "Dados conferidos por você + fotos reais")]
+        if itens:
+            opcoes += [("✏  Editar um aparelho", "editar"), ("📷  Adicionar fotos", "fotos")]
+        if disponiveis:
+            opcoes.append(("💰  Marcar como vendido", "vendido", "Tira das ofertas e sugere arquivar as peças dele"))
+        opcoes.append(("↩  Voltar", "__voltar__"))
+        acao = s.p.escolher("O que fazer?", opcoes)
+        if acao == "__voltar__":
+            break
+        try:
+            if acao == "novo":
+                _cadastrar_aparelho(s)
+            elif acao == "editar":
+                _editar_aparelho(s, itens)
+            elif acao == "fotos":
+                ap = s.p.escolher("Qual aparelho?", [(f"{i['id']} — {i['modelo']}", i["id"]) for i in itens])
+                novas = adicionar_fotos(s.ag.cfg, ap, _pedir_fotos(s))
+                console.print(f"[green]✓ {len(novas)} foto(s) adicionada(s).[/]")
+            elif acao == "vendido":
+                _marcar_vendido(s, disponiveis)
+        except Voltar:
+            continue
+        except (ErroCadastro, ValueError) as erro:
+            console.print(painel_erro(str(erro)))
+        s.recarregar()
+        s.p.pausar()
+    s.recarregar()
+
+
+def _cadastrar_aparelho(s: Sessao) -> None:
+    console.print(f"[{SUAVE}]Informe só o que você conferiu no aparelho. Campo vazio fica como pendente e nunca é inventado nas peças.[/]")
+    modelo = s.p.escolher("Modelo:", [(m, m) for m in MODELOS_IPHONE] + [("Outro (digitar)", "__outro__")], padrao="iPhone 13")
+    if modelo == "__outro__":
+        modelo = s.p.texto("Modelo:", obrigatorio=True)
+    gb = s.p.escolher("Armazenamento:", [(f"{g} GB" if g < 1024 else "1 TB", g) for g in ARMAZENAMENTOS], padrao=128)
+    cor = s.p.texto("Cor:", obrigatorio=True)
+    condicao = s.p.texto("Condição (riscos, marcas, estado da tela e da carcaça):", obrigatorio=True)
+    bateria = s.p.texto("Saúde da bateria em % (Ajustes > Bateria):", validar=_validar_bateria)
+    pecas = s.p.texto("Peças trocadas (Ajustes > Geral > Sobre; vazio = não conferido):")
+    procedencia = s.p.texto("Procedência (ex.: comprado de pessoa física com nota fiscal):")
+    garantia = s.p.texto("Garantia desta unidade (vazio = pendente):")
+    preco = s.p.texto("Preço APROVADO para divulgação em R$ (vazio = pendente):", validar=_validar_preco)
+    fotos = _pedir_fotos(s)
+    responsavel = _pedir_responsavel(s)
+    dados = {
+        "modelo": modelo,
+        "armazenamento_gb": gb,
+        "cor": cor,
+        "condicao": condicao,
+        "saude_bateria_pct": int(bateria) if bateria.strip() else None,
+        "pecas_trocadas": pecas or None,
+        "procedencia": procedencia or None,
+        "garantia": garantia or None,
+        "preco_aprovado_brl": _preco(preco),
+    }
+    if not s.p.confirmar(f"Cadastrar {modelo} {gb}GB {cor} com {len(fotos)} foto(s)?", padrao=True):
+        raise Voltar()
+    ap = adicionar_aparelho(s.ag.cfg, dados, fotos, verificado_por=responsavel)
+    console.print(f"[green]✓ Cadastrado como [bold]{esc(ap.id)}[/].[/] [{SUAVE}]Já pode criar peças de venda com ele (📝 Criar peça → Conversão).[/]")
+
+
+CAMPOS_EDITAVEIS_APARELHO = [
+    ("cor", "Cor"), ("condicao", "Condição"), ("saude_bateria_pct", "Saúde da bateria (%)"), ("pecas_trocadas", "Peças trocadas"),
+    ("procedencia", "Procedência"), ("garantia", "Garantia"), ("preco_aprovado_brl", "Preço aprovado (R$)"),
+]
+
+
+def _editar_aparelho(s: Sessao, itens: list[dict]) -> None:
+    ap = s.p.escolher("Qual aparelho?", [(f"{i['id']} — {i['modelo']}", i["id"]) for i in itens])
+    item = next(i for i in itens if i["id"] == ap)
+    chave = s.p.escolher("Qual campo?", [(f"{r}: {item.get(k) if item.get(k) is not None else 'pendente'}", k) for k, r in CAMPOS_EDITAVEIS_APARELHO])
+    atual = item.get(chave)
+    validar = _validar_bateria if chave == "saude_bateria_pct" else _validar_preco if chave == "preco_aprovado_brl" else None
+    valor = s.p.texto("Novo valor (vazio = pendente):", padrao="" if atual is None else str(atual), validar=validar)
+    if chave == "saude_bateria_pct":
+        novo = int(valor) if valor.strip() else None
+    elif chave == "preco_aprovado_brl":
+        novo = _preco(valor)
+    else:
+        novo = valor or None
+    atualizar_aparelho(s.ag.cfg, ap, **{chave: novo}, verificado_por=_pedir_responsavel(s), verificado_em=date.today().isoformat())
+    console.print("[green]✓ Atualizado.[/] [{0}]Peças já criadas com este aparelho: use 🔄 Reverificar para conferir os dados novos.[/]".format(SUAVE))
+
+
+def _marcar_vendido(s: Sessao, disponiveis: list[dict]) -> None:
+    ap = s.p.escolher("Qual aparelho foi vendido?", [(f"{i['id']} — {i['modelo']} {i.get('armazenamento_gb') or ''}GB", i["id"]) for i in disponiveis])
+    if not s.p.confirmar(f"Confirmar venda de {ap}? Ele sai das ofertas.", padrao=True):
+        raise Voltar()
+    marcar_vendido(s.ag.cfg, ap)
+    console.print(f"[green]✓ {esc(ap)} marcado como vendido.[/]")
+    ativas = [p for p in s.ag.pecas_do_produto(ap) if p["status"] not in ("arquivado", "analisado")]
+    if not ativas:
+        return
+    console.print(f"[yellow]{len(ativas)} peça(s) anunciam esta unidade:[/] " + ", ".join(f"{p['id']} ({p['status']})" for p in ativas))
+    console.print(f"[{SUAVE}]Briefing: pausar ou atualizar criativos de unidades vendidas. Anúncios ativos na Meta precisam ser pausados por você.[/]")
+    if s.p.confirmar("Arquivar essas peças agora?", padrao=True):
+        nome = s.responsavel or "responsável"
+        for p in ativas:
+            s.ag.registro.atualizar_status(p["id"], StatusPeca.arquivado, nome, nota=f"unidade {ap} vendida")
+        console.print(f"[green]✓ {len(ativas)} peça(s) arquivada(s).[/]")
+
+
 FLUXOS: dict[str, Callable[[Sessao], None]] = {
+    "negocio": fluxo_negocio,
+    "estoque": fluxo_estoque,
     "planejar": fluxo_planejar,
     "lote": fluxo_lote,
     "criar": fluxo_criar,

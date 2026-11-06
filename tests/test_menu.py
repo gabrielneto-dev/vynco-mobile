@@ -64,7 +64,7 @@ def test_cabecalho_mostra_estado(agente):
     c = Console(record=True, width=120)
     c.print(cabecalho(s))
     texto = c.export_text()
-    for trecho in ("Agente de Conteúdo", "Haiku 5.5", "Nano Banana 2", "chave configurada", "informações pendentes", "vazio", "nenhuma ainda"):
+    for trecho in ("Agente de Conteúdo", "Haiku 5.5", "Nano Banana 2", "chave configurada", "preenchidos", "falta: Nome da loja", "vazio", "nenhuma ainda"):
         assert trecho in texto, trecho
 
 

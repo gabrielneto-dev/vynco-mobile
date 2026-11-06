@@ -115,6 +115,22 @@ class Agente:
             raise ErroAgente(f"Produto {brief.produto_id} não está mais disponível no estoque.")
         return self._finalizar_peca(peca, brief, produto, doc.get("modelo"), peca_id=peca_id)
 
+    def reverificar_todas(self, status: tuple[str, ...] = ("revisao",)) -> list[tuple[str, ResultadoPeca | str]]:
+        """Reverifica (sem custo) todas as peças nos status indicados. Erros não interrompem as demais."""
+        self.ctx = carregar_contexto(self.cfg)  # pega negocio.json/estoque.json recém-editados
+        resultados: list[tuple[str, ResultadoPeca | str]] = []
+        for item in self.registro.listar():
+            if item["status"] not in status:
+                continue
+            try:
+                resultados.append((item["id"], self.reverificar(item["id"])))
+            except ErroAgente as e:
+                resultados.append((item["id"], str(e)))
+        return resultados
+
+    def pecas_do_produto(self, produto_id: str) -> list[dict]:
+        return [p for p in self.registro.listar() if p.get("produto_id") == produto_id]
+
     # ================================================================== ADAPTAR
     def adaptar(self, peca_id: str, formato: Formato, *, observacoes: str | None = None, modelo: str | None = None) -> ResultadoPeca:
         peca_orig, brief_orig, _, _ = self.registro.carregar_modelos(peca_id)
