@@ -22,6 +22,8 @@ class Config:
     app_nome: str
     timeout_s: float
     max_tokens: int
+    esforco_raciocinio: str | None
+    cotacao_dolar: float
     dir_contexto: Path
     dir_dados: Path
     dir_saida: Path
@@ -36,13 +38,18 @@ def carregar_config() -> Config:
         api_key=os.getenv("OPENROUTER_API_KEY") or None,
         base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/"),
         # Texto: qualquer modelo do OpenRouter com suporte a structured outputs.
-        modelo_texto=os.getenv("MODELO_TEXTO", "anthropic/claude-sonnet-5.5"),
+        # Haiku 5.5 ≈ US$ 0,004 por peça; Sonnet 5.5 ≈ US$ 0,06–0,08 (mais refinado, para peças finais).
+        modelo_texto=os.getenv("MODELO_TEXTO", "anthropic/claude-haiku-5.5"),
         # Nano Banana 2. Alternativas: google/gemini-3-pro-image (Pro), google/gemini-2.5-flash-image (original).
         modelo_imagem=os.getenv("MODELO_IMAGEM", "google/gemini-3.1-flash-image"),
         app_url=os.getenv("OPENROUTER_APP_URL", "http://localhost"),
         app_nome=os.getenv("OPENROUTER_APP_NOME", "Agente de Conteudo iPhones"),
         timeout_s=float(os.getenv("TIMEOUT_S", "180")),
         max_tokens=int(os.getenv("MAX_TOKENS", "16000")),
+        # Raciocínio interno é cobrado como saída. "low" corta ~40% do custo do Sonnet; vazio = padrão do modelo.
+        esforco_raciocinio=os.getenv("ESFORCO_RACIOCINIO", "low") or None,
+        # Só para exibir custos em reais (aproximado).
+        cotacao_dolar=float(os.getenv("COTACAO_DOLAR", "5.5")),
         dir_contexto=caminho("DIR_CONTEXTO", "contexto"),
         dir_dados=caminho("DIR_DADOS", "dados"),
         dir_saida=caminho("DIR_SAIDA", "saida"),

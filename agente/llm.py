@@ -65,6 +65,7 @@ class ClienteOpenRouter:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self._suporta_json_schema: dict[str, bool] = {}
+        self._suporta_raciocinio: dict[str, bool] = {}
         self.uso_acumulado: dict[str, float] = {"prompt_tokens": 0, "completion_tokens": 0, "custo_usd": 0.0}
 
     # ------------------------------------------------------------------ baixo nível
@@ -107,19 +108,29 @@ class ClienteOpenRouter:
     ) -> T:
         modelo = modelo or self.cfg.modelo_texto
         schema = modelo_saida.model_json_schema()
-        usuario_completo = (
-            f"{usuario}\n\n---\nResponda SOMENTE com um objeto JSON válido que siga exatamente este JSON Schema "
-            f"(sem texto antes ou depois):\n{json.dumps(schema, ensure_ascii=False)}"
-        )
-        mensagens: list[dict] = [
-            # cache_control: provedores que suportam (Anthropic, Gemini) reaproveitam o contexto fixo.
-            {"role": "system", "content": [{"type": "text", "text": sistema, "cache_control": {"type": "ephemeral"}}]},
-            {"role": "user", "content": usuario_completo},
-        ]
 
+        def montar_mensagens() -> list[dict]:
+            # Com response_format aceito, o schema vai só nele (economiza ~5 mil tokens de entrada por chamada).
+            # Sem suporte, vai no texto do pedido.
+            if self._suporta_json_schema.get(modelo, True):
+                pedido = f"{usuario}\n\nResponda somente com o objeto JSON no formato solicitado."
+            else:
+                pedido = (
+                    f"{usuario}\n\n---\nResponda SOMENTE com um objeto JSON válido que siga exatamente este JSON Schema "
+                    f"(sem texto antes ou depois):\n{json.dumps(schema, ensure_ascii=False)}"
+                )
+            return [
+                # cache_control: o contexto fixo (igual em todos os modos) é reaproveitado por ~5 min (Anthropic, Gemini).
+                {"role": "system", "content": [{"type": "text", "text": sistema, "cache_control": {"type": "ephemeral"}}]},
+                {"role": "user", "content": pedido},
+            ]
+
+        mensagens = montar_mensagens()
         ultimo_erro = ""
         for _ in range(tentativas + 1):
             payload: dict[str, Any] = {"model": modelo, "messages": mensagens, "max_tokens": self.cfg.max_tokens}
+            if self.cfg.esforco_raciocinio and self._suporta_raciocinio.get(modelo, True):
+                payload["reasoning"] = {"effort": self.cfg.esforco_raciocinio}
             if self._suporta_json_schema.get(modelo, True):
                 payload["response_format"] = {
                     "type": "json_schema",
@@ -132,9 +143,14 @@ class ClienteOpenRouter:
             try:
                 data = self.post(payload)
             except ErroLLM as e:
-                # Se o provedor recusar o response_format (HTTP 400), repete só com o schema no prompt.
+                if e.status == 400 and "reasoning" in payload and "reason" in str(e).lower():
+                    # Modelo não aceita ajuste de raciocínio: repete sem o parâmetro.
+                    self._suporta_raciocinio[modelo] = False
+                    continue
                 if "response_format" in payload and e.status == 400:
+                    # Provedor recusou o response_format: repete com o schema no texto do pedido.
                     self._suporta_json_schema[modelo] = False
+                    mensagens = montar_mensagens()
                     continue
                 raise
 

@@ -65,6 +65,11 @@ def nome_modelo(modelo_id: str) -> str:
     return NOME_MODELO.get(modelo_id, modelo_id)
 
 
+def em_reais(usd: float, cotacao: float) -> str:
+    """Valor aproximado em reais, com vírgula decimal."""
+    return "R$ " + f"{usd * cotacao:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def selo_status(status: str) -> str:
     return f"[{COR_STATUS.get(status, 'white')}]● {NOME_STATUS.get(status, status)}[/]"
 
@@ -128,10 +133,8 @@ def mostrar_peca(r) -> None:
 def mostrar_uso(ag) -> None:
     u = ag.cliente.uso_acumulado
     if u["prompt_tokens"] or u["completion_tokens"]:
-        console.print(
-            f"[{SUAVE}]Tokens: {int(u['prompt_tokens']):,} entrada / {int(u['completion_tokens']):,} saída · "
-            f"custo ≈ US$ {u['custo_usd']:.4f}[/]".replace(",", ".")
-        )
+        tokens = f"{int(u['prompt_tokens']):,} entrada / {int(u['completion_tokens']):,} saída".replace(",", ".")
+        console.print(f"[{SUAVE}]Tokens: {tokens} · custo ≈ {em_reais(u['custo_usd'], ag.cfg.cotacao_dolar)} (US$ {u['custo_usd']:.4f})[/]")
 
 
 def mostrar_calendario(r) -> None:

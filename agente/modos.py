@@ -92,8 +92,8 @@ class Agente:
     # ================================================================== CRIAR
     def criar(self, brief: Brief, *, generico: bool = False, modelo: str | None = None) -> ResultadoPeca:
         produto = self.validar_brief(brief, generico=generico)
-        sistema = prompts.montar_sistema(self.ctx, "criar")
-        peca = self.cliente.gerar_estruturado(sistema, prompts.usuario_criar(brief, produto), Peca, modelo=modelo)
+        sistema = prompts.montar_sistema(self.ctx)
+        peca = self.cliente.gerar_estruturado(sistema, prompts.pedido("criar", prompts.usuario_criar(brief, produto)), Peca, modelo=modelo)
         return self._finalizar_peca(peca, brief, produto, modelo)
 
     def _finalizar_peca(self, peca: Peca, brief: Brief, produto: Aparelho | None, modelo: str | None, peca_id: str | None = None) -> ResultadoPeca:
@@ -122,9 +122,9 @@ class Agente:
             raise ErroAgente("O formato de destino é igual ao original.")
         brief = brief_orig.model_copy(update={"formato": formato, "origem": peca_id})
         produto = self.validar_brief(brief, generico=True)
-        sistema = prompts.montar_sistema(self.ctx, "adaptar")
+        sistema = prompts.montar_sistema(self.ctx)
         usuario = prompts.usuario_adaptar(peca_orig.model_dump_json(), brief_orig, formato.value, observacoes)
-        peca = self.cliente.gerar_estruturado(sistema, usuario, Peca, modelo=modelo)
+        peca = self.cliente.gerar_estruturado(sistema, prompts.pedido("adaptar", usuario), Peca, modelo=modelo)
         return self._finalizar_peca(peca, brief, produto, modelo)
 
     # ================================================================== PLANEJAR
@@ -139,9 +139,9 @@ class Agente:
     ) -> ResultadoCalendario:
         inicio = inicio or date.today()
         historico = "\n".join(f"- {p['titulo']} ({p['pilar']}/{p['formato']})" for p in self.registro.listar()[:40]) or None
-        sistema = prompts.montar_sistema(self.ctx, "planejar")
+        sistema = prompts.montar_sistema(self.ctx)
         usuario = prompts.usuario_planejar(semanas, inicio.isoformat(), publicacoes_semana, foco, historico)
-        cal = self.cliente.gerar_estruturado(sistema, usuario, Calendario, modelo=modelo)
+        cal = self.cliente.gerar_estruturado(sistema, prompts.pedido("planejar", usuario), Calendario, modelo=modelo)
 
         avisos = self.avisos_calendario(cal, esperado=semanas * publicacoes_semana)
         distribuicao = render.distribuicao_pilares(cal)
@@ -214,9 +214,9 @@ class Agente:
             achados = verificar_texto(texto, negocio=self.ctx.negocio)
             rotulo = p.name if p else "texto avulso"
 
-        sistema = prompts.montar_sistema(self.ctx, "revisar")
+        sistema = prompts.montar_sistema(self.ctx)
         usuario = prompts.usuario_revisar(texto, [a.to_dict() for a in achados], contexto_extra)
-        rev = self.cliente.gerar_estruturado(sistema, usuario, Revisao, modelo=modelo)
+        rev = self.cliente.gerar_estruturado(sistema, prompts.pedido("revisar", usuario), Revisao, modelo=modelo)
         if any(a.nivel == Nivel.bloqueio for a in achados) and rev.veredito != "bloqueado":
             rev.veredito = "bloqueado"  # regra determinística prevalece sobre o modelo
         caminho = self.registro.salvar_revisao(rotulo, {**rev.model_dump(mode="json"), "achados": [a.to_dict() for a in achados]}, render.revisao_md(rotulo, rev, achados))
@@ -236,8 +236,8 @@ class Agente:
                     if not ln.get(campo):
                         ln[campo] = ent[campo]
         agregados = agregar(linhas)
-        sistema = prompts.montar_sistema(self.ctx, "analisar")
-        an = self.cliente.gerar_estruturado(sistema, prompts.usuario_analisar(agregados, linhas, colunas), Analise, modelo=modelo)
+        sistema = prompts.montar_sistema(self.ctx)
+        an = self.cliente.gerar_estruturado(sistema, prompts.pedido("analisar", prompts.usuario_analisar(agregados, linhas, colunas)), Analise, modelo=modelo)
         pasta = self.registro.dir / "analises"
         pasta.mkdir(parents=True, exist_ok=True)
         nome = f"A-{date.today():%Y%m%d}-{len(list(pasta.glob('*.md'))) + 1:02d}"

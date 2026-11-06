@@ -2,7 +2,7 @@
 
 MVP do agente descrito em [docs/briefing_estrategico_v1.md](docs/briefing_estrategico_v1.md), feito em **Python** com:
 
-- **OpenRouter** para texto (planejar, criar, adaptar, revisar, analisar). Padrão: `anthropic/claude-sonnet-5.5`.
+- **OpenRouter** para texto (planejar, criar, adaptar, revisar, analisar). Padrão: `anthropic/claude-haiku-5.5` (≈ R$ 0,02 por peça); `anthropic/claude-sonnet-5.5` para peças finais (≈ R$ 0,39).
 - **Nano Banana** (Gemini Image) via OpenRouter para imagens conceituais. Padrão: `google/gemini-3.1-flash-image` (Nano Banana 2); `google/gemini-3-pro-image` para o Pro.
 
 Uma única chave do OpenRouter cobre texto e imagem.

@@ -17,11 +17,20 @@ def brief(**kw):
 
 
 def test_sistema_inclui_contexto_e_pendencias(agente):
-    s = montar_sistema(agente.ctx, "criar")
+    s = montar_sistema(agente.ctx)
     for nome in ("BRAND.md", "QUALITY_RULES.md", "CREATIVE_STANDARDS.md"):
         assert nome in s
     assert "nome_loja" in s  # pendente listado
     assert "Nenhuma unidade disponível" in s
+    assert "MODO:" not in s  # instruções de modo ficam fora do sistema (cache compartilhado)
+
+
+def test_sistema_igual_em_todos_os_modos_e_modo_vai_no_pedido(agente):
+    agente.criar(brief())
+    agente.revisar("Texto qualquer para revisar.")
+    (s1, u1), (s2, u2) = agente.cliente.chamadas[-2:]
+    assert s1 == s2
+    assert u1.startswith("MODO: CRIAR") and u2.startswith("MODO: REVISAR")
 
 
 def test_criar_salva_versao_e_markdown(agente):
@@ -124,3 +133,34 @@ def test_extrair_json_e_sanitizar():
     s = _sanitizar_schema(Peca.model_json_schema())
     texto = str(s)
     assert "minItems" not in texto and "'additionalProperties': False" in texto
+
+
+def test_schema_vai_so_no_response_format_e_raciocinio_baixo(agente, monkeypatch):
+    """Economia: o JSON Schema não é repetido no texto do pedido quando o response_format é aceito."""
+    from agente.llm import ClienteOpenRouter
+    from conftest import peca_exemplo
+    import json as _json
+
+    enviados = []
+    real = ClienteOpenRouter(agente.cfg)
+    def post(payload):
+        enviados.append(payload)
+        return {"choices": [{"message": {"content": _json.dumps(peca_exemplo())}}], "usage": {}}
+    monkeypatch.setattr(real, "post", post)
+    real.gerar_estruturado("sistema", "pedido", Peca)
+    p = enviados[0]
+    assert "response_format" in p and "JSON Schema" not in p["messages"][1]["content"]
+    assert p["reasoning"] == {"effort": agente.cfg.esforco_raciocinio}
+
+    # Provedor recusa response_format → repete com schema no texto.
+    from agente.llm import ErroLLM
+    chamadas = {"n": 0}
+    def post_recusa(payload):
+        chamadas["n"] += 1
+        if "response_format" in payload:
+            raise ErroLLM("OpenRouter 400: response_format not supported", status=400)
+        enviados.append(payload)
+        return {"choices": [{"message": {"content": _json.dumps(peca_exemplo())}}], "usage": {}}
+    monkeypatch.setattr(real, "post", post_recusa)
+    real.gerar_estruturado("sistema", "pedido", Peca, modelo="outro/modelo")
+    assert "JSON Schema" in enviados[-1]["messages"][1]["content"] and chamadas["n"] == 2

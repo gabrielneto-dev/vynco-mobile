@@ -46,6 +46,7 @@ from agente.visual import (
     SUAVE,
     caminho_curto,
     console,
+    em_reais,
     esc,
     mostrar_analise,
     mostrar_calendario,
@@ -101,26 +102,28 @@ NOME_ETAPA = {
 SERIES = ["iPhone sem cilada", "Vale o upgrade?", "Seu iPhone vale quanto?", "Mito ou verdade?", "Por dentro da avaliação"]
 
 MODELOS_TEXTO = [
-    ("anthropic/claude-sonnet-5.5", "Qualidade — peças finais e revisões (≈ US$ 0,10 por peça)"),
-    ("anthropic/claude-haiku-5.5", "Rascunho barato — exploração e testes (≈ US$ 0,005 por peça)"),
+    ("anthropic/claude-haiku-5.5", "Econômico (padrão) — ≈ R$ 0,02 por peça; bom para o dia a dia"),
+    ("anthropic/claude-sonnet-5.5", "Qualidade — ≈ R$ 0,35 por peça; texto mais refinado para peças finais"),
 ]
 MODELOS_IMAGEM = [
-    ("google/gemini-3.1-flash-image", "Padrão — bom custo/qualidade (≈ US$ 0,07 por imagem 1K)"),
-    ("google/gemini-3-pro-image", "Mais qualidade e melhor texto na imagem (≈ US$ 0,13 por imagem 1K)"),
-    ("google/gemini-2.5-flash-image", "Mais barato (≈ US$ 0,04 por imagem)"),
+    ("google/gemini-3.1-flash-image", "Padrão — bom custo/qualidade (≈ R$ 0,37 por imagem 1K)"),
+    ("google/gemini-2.5-flash-image", "Mais barato (≈ R$ 0,21 por imagem) — ótimo para testar ideias"),
+    ("google/gemini-3-pro-image", "Mais qualidade e melhor texto na imagem (≈ R$ 0,74 por imagem 1K)"),
 ]
 
 # ====================================================================== custo estimado
 # US$ por 1M de tokens (entrada, saída) — tabela do OpenRouter em 11/2026.
 PRECO_TEXTO = {"anthropic/claude-sonnet-5.5": (2.0, 10.0), "anthropic/claude-haiku-5.5": (0.10, 0.50)}
-# Tokens medidos nos testes reais (entrada, saída).
+# Tokens medidos nos testes reais após as otimizações (entrada, saída sem raciocínio).
 TOKENS_ACAO = {
-    "criar": (16_500, 7_000),
-    "adaptar": (19_500, 6_000),
-    "revisar": (18_000, 8_000),
-    "analisar": (17_000, 5_000),
-    "planejar_semana": (13_000, 3_800),
+    "criar": (11_500, 3_200),
+    "adaptar": (14_500, 3_200),
+    "revisar": (13_000, 2_500),
+    "analisar": (13_000, 3_000),
+    "planejar_semana": (11_000, 3_000),
 }
+# Modelos que raciocinam antes de responder geram mais saída (medido: Sonnet 5.5 com esforço "low").
+FATOR_SAIDA = {"anthropic/claude-sonnet-5.5": 1.35}
 PRECO_TOKEN_IMAGEM = {"google/gemini-3.1-flash-image": 6e-5, "google/gemini-3-pro-image": 1.2e-4, "google/gemini-2.5-flash-image": 3e-5}
 TOKENS_IMAGEM = {None: 1_120, "2K": 1_680, "4K": 2_520}
 
@@ -130,9 +133,10 @@ def estimar_texto(acao: str, modelo: str, vezes: int = 1, semanas: int = 1) -> f
         return None
     p_in, p_out = PRECO_TEXTO[modelo]
     if acao == "planejar":
-        t_in, t_out = TOKENS_ACAO["planejar_semana"][0], 1_000 + 2_800 * semanas
+        t_in, t_out = TOKENS_ACAO["planejar_semana"][0], 1_000 + 2_000 * semanas
     else:
         t_in, t_out = TOKENS_ACAO[acao]
+    t_out *= FATOR_SAIDA.get(modelo, 1.0)
     return vezes * (t_in * p_in + t_out * p_out) / 1_000_000
 
 
@@ -297,7 +301,7 @@ def cabecalho(s: Sessao) -> Panel:
     )
     g.add_row(
         "OpenRouter", "[green]✓ chave configurada[/]" if ag.cfg.api_key else "[red]✗ chave faltando no .env[/]",
-        "Sessão", f"US$ {custo:.4f}",
+        "Sessão", f"{em_reais(custo, ag.cfg.cotacao_dolar)} [{SUAVE}](US$ {custo:.4f})[/]",
     )
     g.add_row(
         "Negócio", f"[yellow]{pend} informações pendentes[/]" if pend else "[green]✓ completo[/]",
@@ -359,7 +363,7 @@ def confirmar_custo(s: Sessao, valor: float | None, modelo: str) -> None:
     if valor is None:
         console.print(f"[{SUAVE}]💰 Custo estimado indisponível para {esc(nome_modelo(modelo))}.[/]")
     else:
-        console.print(f"[{SUAVE}]💰 Custo estimado ≈[/] [bold]US$ {valor:.3f}[/] [{SUAVE}]({esc(nome_modelo(modelo))})[/]")
+        console.print(f"[{SUAVE}]💰 Custo estimado ≈[/] [bold]{em_reais(valor, s.ag.cfg.cotacao_dolar)}[/] [{SUAVE}](US$ {valor:.3f} · {esc(nome_modelo(modelo))})[/]")
     if not s.p.confirmar("Continuar?", padrao=True):
         raise Voltar()
 
@@ -486,8 +490,8 @@ def fluxo_imagem(s: Sessao, peca_id: str | None = None) -> None:
     )
     tamanho = s.p.escolher(
         "Resolução:",
-        [("Padrão (~1K)", "padrao", "Bom para rascunho"), ("2K", "2K", "Recomendado para publicar (acima de 1080 px)"), ("4K", "4K", "Máxima, mais cara")],
-        padrao="2K",
+        [("Padrão (~1K)", "padrao", "Mais barato · bom para validar a ideia"), ("2K", "2K", "Para a versão final (passa de 1080 px) · ~1,5x o custo"), ("4K", "4K", "Máxima · ~2,3x o custo")],
+        padrao="padrao",
     )
     tamanho = None if tamanho == "padrao" else tamanho
     modelo = s.p.escolher("Modelo de imagem:", [(nome_modelo(m), m, d) for m, d in MODELOS_IMAGEM], padrao=s.modelo_imagem)
@@ -857,7 +861,7 @@ def executar_menu(sessao: Sessao | None = None) -> None:
     custo = s.ag.cliente.uso_acumulado["custo_usd"]
     console.print(
         Panel(
-            f"Até logo! Custo desta sessão ≈ [bold]US$ {custo:.4f}[/]",
+            f"Até logo! Custo desta sessão ≈ [bold]{em_reais(custo, s.ag.cfg.cotacao_dolar)}[/] [{SUAVE}](US$ {custo:.4f})[/]",
             border_style=DESTAQUE,
             box=box.ROUNDED,
             padding=(0, 2),

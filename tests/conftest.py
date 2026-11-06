@@ -15,7 +15,7 @@ from agente.config import RAIZ, carregar_config
 from agente.contexto import carregar_contexto
 from agente.llm import ClienteOpenRouter
 from agente.modos import Agente
-from agente.schemas import Calendario, Peca
+from agente.schemas import Calendario, Peca, Revisao
 
 PNG_1PX = base64.b64encode(
     bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000" "1f15c4890000000d49444154789c6360000002000154a24f5f0000000049454e44ae426082")
@@ -76,7 +76,8 @@ class ClienteFalso(ClienteOpenRouter):
 
     def gerar_estruturado(self, sistema, usuario, modelo_saida, *, modelo=None, tentativas=2):
         self.chamadas.append((sistema, usuario))
-        padrao = {Peca: peca_exemplo(), Calendario: calendario_exemplo()}
+        padrao = {Peca: peca_exemplo(), Calendario: calendario_exemplo(),
+                  Revisao: {"veredito": "pronto_para_aprovacao_humana", "resumo": "ok", "problemas": [], "pontos_fortes": [], "campos_para_validar": []}}
         dados = self.respostas.get(modelo_saida, padrao.get(modelo_saida))
         return modelo_saida.model_validate(dados)
 

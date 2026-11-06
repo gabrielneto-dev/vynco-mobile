@@ -19,6 +19,13 @@ Regras invioláveis (detalhes em QUALITY_RULES.md):
 6. Português do Brasil, tom profissional, próximo, direto e confiante. Prompts de imagem em inglês.
 7. Para conteúdo genérico você pode trabalhar com premissas explícitas; para oferta concreta, só com dados verificados."""
 
+CONCISAO = """## Economia de texto (cada palavra gerada tem custo)
+- Seja direto em todos os campos. Nada de repetir no checklist o que já está nas afirmações.
+- Checklist de validação: no máximo 6 itens, só o que realmente exige conferência humana.
+- Afirmações: no máximo 6, só as relevantes para veracidade (fatos, números, promessas).
+- Variações: copy com no máximo 60 palavras cada.
+- Justificativa estratégica: no máximo 3 frases."""
+
 MODOS = {
     "planejar": """MODO: PLANEJAR — montar calendário editorial e conceitos.
 - Respeite a cadência pedida e aproxime a distribuição mensal dos pesos de CONTENT_PILLARS.md (30/25/15/20/10), ajustando ao estoque.
@@ -40,9 +47,9 @@ MODOS = {
 - Reescreva roteiro, direção de arte e copy para as convenções do novo formato.
 - Gere novamente todos os campos da saída padrão.""",
     "revisar": """MODO: REVISAR — auditoria de clareza, veracidade, marca, objetivo, conformidade e privacidade.
-- Aponte cada problema com trecho exato, explicação e sugestão concreta.
+- Aponte cada problema com trecho exato, explicação curta (1 frase) e sugestão concreta. No máximo 8 problemas, os mais importantes primeiro.
 - Veredito: bloqueado se houver violação de QUALITY_RULES; ajustes_necessarios se houver problemas corrigíveis; pronto_para_aprovacao_humana caso contrário.
-- Se houver ajustes, entregue versao_revisada completa.
+- versao_revisada: só quando o veredito for bloqueado ou ajustes_necessarios, e apenas com o texto publicável (copy, legenda e CTA), não a peça inteira. Se estiver pronta, deixe null.
 - Lembre: "pronto" ainda exige aprovação humana; você nunca aprova publicação.""",
     "analisar": """MODO: ANALISAR — comparar desempenho e recomendar ajustes a partir de dados reais.
 - Use apenas os números fornecidos; não estime números ausentes.
@@ -69,12 +76,19 @@ def _bloco_estoque(ctx: Contexto) -> str:
     return "## ESTOQUE (unidades disponíveis e verificadas)\n" + "\n".join(linhas) + "\n"
 
 
-def montar_sistema(ctx: Contexto, modo: str) -> str:
+def montar_sistema(ctx: Contexto) -> str:
+    """Contexto fixo, IDÊNTICO em todos os modos: assim o cache de prompt é reaproveitado entre criar,
+    revisar, planejar etc. (a leitura em cache custa ~5% do preço normal de entrada)."""
     partes = [IDENTIDADE, "", "# ENGENHARIA DE CONTEXTO"]
     for nome, conteudo in ctx.arquivos.items():
         partes += [f"\n<arquivo nome=\"{nome}\">\n{conteudo.strip()}\n</arquivo>"]
-    partes += ["", _bloco_negocio(ctx), _bloco_estoque(ctx), "", MODOS[modo]]
+    partes += ["", _bloco_negocio(ctx), _bloco_estoque(ctx), "", CONCISAO]
     return "\n".join(partes)
+
+
+def pedido(modo: str, texto: str) -> str:
+    """Instruções do modo + pedido concreto (vai na mensagem do usuário, fora do cache)."""
+    return f"{MODOS[modo]}\n\n---\n\n{texto}"
 
 
 def usuario_criar(brief: Brief, produto: Aparelho | None) -> str:

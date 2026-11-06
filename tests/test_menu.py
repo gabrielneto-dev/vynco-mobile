@@ -69,8 +69,9 @@ def test_cabecalho_mostra_estado(agente):
 
 
 def test_estimativas_de_custo():
-    assert 0.08 < estimar_texto("criar", "anthropic/claude-sonnet-5.5") < 0.13
-    assert estimar_texto("criar", "anthropic/claude-haiku-5.5") < 0.01
+    # Valores medidos nos testes reais após as otimizações (Sonnet ≈ US$ 0,06–0,08; Haiku ≈ US$ 0,003).
+    assert 0.04 < estimar_texto("criar", "anthropic/claude-sonnet-5.5") < 0.09
+    assert estimar_texto("criar", "anthropic/claude-haiku-5.5") < 0.005
     assert estimar_texto("criar", "modelo/desconhecido") is None
     assert 0.06 < estimar_imagem("google/gemini-3.1-flash-image") < 0.08
     assert estimar_imagem("google/gemini-3.1-flash-image", "2K", 2) > 0.19
@@ -137,3 +138,9 @@ def test_lote_pelo_menu_respeita_quantidade(agente):
     s = sessao(agente, [False, 2, True])  # não gerar vendas genéricas · 2 peças · confirma custo
     menu.fluxo_lote(s, cal_id=cal.id)
     assert len(agente.registro.listar()) == 2
+
+
+def test_em_reais():
+    from agente.visual import em_reais
+    assert em_reais(0.0035, 5.5) == "R$ 0,02"
+    assert em_reais(1234.5, 5.5) == "R$ 6.789,75"
