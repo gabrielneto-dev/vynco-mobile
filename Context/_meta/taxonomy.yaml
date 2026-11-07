@@ -1,0 +1,61 @@
+version: 1
+
+branches:
+  negocio: Operação da Vynco Mobile, dados comerciais confirmados e pendências do dono
+  marketing: Estratégia editorial, públicos, pilares, campanhas, métricas de negócio
+  software: Código do agente (Python), LLM/OpenRouter, custos, menu, arte, métricas, backup, testes
+  guardrails: Regras de veracidade/ética e as verificações automáticas que as garantem
+
+types: [fact, assumption, question, research, decision, plan, risk, experiment, note, source, summary, checkpoint]
+
+# Tag canônica -> sinônimos que NÃO devem ser usados (use a canônica).
+canonical_tags:
+  negocio: [empresa, loja]
+  dados-negocio: [negocio-json, dados-comerciais]
+  estoque: [inventario, catalogo-produtos]
+  captacao: [compra-de-usados, compra-usados]
+  venda: [conversao-venda]
+  marca: [branding, identidade-visual, brand]
+  publicos: [personas, audiencias]
+  pilares: [pilares-editoriais, content-pillars]
+  campanhas: [meta-ads, anuncios, ads]
+  metricas: [insights, analytics]
+  aprovacao-humana: [aprovacao, revisao-humana]
+  publicacao: [postar, publicar]
+  llm: [openrouter, modelo-texto, haiku, sonnet]
+  imagem: [nano-banana, gemini-image]
+  custo: [custos, preco-api]
+  guardrails: [verificacoes, regras-automaticas]
+  falso-positivo: [falsos-positivos]
+  arte: [pillow, arte-final]
+  menu: [cli, terminal]
+  backup: [onedrive]
+  testes: [pytest, tests]
+  acentuacao: [acentos]
+  plataforma-meta: [instagram, facebook]
+  licao-aprendida: [conhecimento-negativo, erro-conhecido]
+  arquitetura: [estrutura-codigo]
+  contexto-runtime: [pasta-contexto]
+  bootstrap: []
+  pendencia: [pendente]
+
+statuses:
+  - active
+  - open
+  - answered
+  - candidate
+  - planned
+  - in-progress
+  - completed
+  - cancelled
+  - experimental
+  - blocked
+  - superseded
+  - deprecated
+  - archived
+
+confidence:
+  - low
+  - medium
+  - high
+  - verified

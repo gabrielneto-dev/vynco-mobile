@@ -1,0 +1,41 @@
+context_engineering_version: 1
+
+root: Context
+
+strategy:
+  progressive_loading: true
+  atomic_documents: true
+  preserve_history: true
+  controlled_writes: true
+
+retrieval:
+  initial_files:
+    - MAP.md
+    - STATE.md
+  default_relation_depth: 1
+  prefer_active_records: true
+
+persistence:
+  trigger_mode: explicit        # só grava em "salvar contexto" e equivalentes
+  create_checkpoint_on_save: true
+  update_state_on_save: true
+  update_catalog_on_save: true
+  catalog_tool: Context/_meta/catalogo.py
+
+naming:
+  files: kebab-case
+  file_pattern: "<TYPE>-<YYYYMMDD>-<slug>.md"
+  id_pattern: "CTX-<TYPE>-<YYYYMMDD>-<slug>"
+  ids: stable
+  id_date: origin             # data de origem do conhecimento; senão, data de criação
+
+metadata:
+  format: yaml-frontmatter
+  required: [id, type, title, branch, tags, status, created_at, updated_at]
+
+language: pt-BR
+
+security:
+  allow_credentials: false
+  allow_secrets: false
+  allow_personal_data: false   # clientes/vendedores: nome, IMEI, telefone pessoal
