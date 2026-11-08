@@ -26,5 +26,8 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 packages = ["agente"]
 
+[tool.setuptools.package-data]
+agente = ["fontes/*.ttf"]  # Inter (OFL), usada pela arte final
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -25,6 +25,7 @@ from rich.text import Text
 
 from agente.armazenamento import ErroRegistro
 from agente.arte import ErroArte, montar_arte
+from agente.design import DESCRICAO_ESTILO, ESTILOS, estilo_padrao
 from agente.backup import configurar_destino, destino_configurado, fazer_backup, sugerir_destino, tempo_relativo, ultimo_backup
 from agente.metricas import importar as importar_metricas
 from agente.metricas import salvar as salvar_metricas
@@ -74,6 +75,7 @@ from agente.visual import (
     mostrar_peca,
     mostrar_pendencias,
     mostrar_revisao,
+    mostrar_validacao,
     nome_modelo,
     painel_erro,
     selo_status,
@@ -553,6 +555,10 @@ def fluxo_arte(s: Sessao, peca_id: str | None = None) -> None:
         [(f"{i}. {g[:90]}", i) for i, g in enumerate(peca.ganchos, 1)],
         padrao=1,
     )
+    padrao = estilo_padrao(brief.formato, brief.frente, brief.produto_id)
+    estilos = [(("✓ " if e == padrao else "") + DESCRICAO_ESTILO[e], e, "padrão para esta peça" if e == padrao else "")
+               for e in ESTILOS if e != "oferta" or (brief.produto_id and brief.frente.value == "venda")]
+    estilo = s.p.escolher("Estilo visual (docs/padrao_visual.md):", estilos, padrao=padrao)
     venda_real = brief.frente.value == "venda" and brief.produto_id
     if venda_real:
         opcoes = [("📷 Foto real da unidade", "auto", "Obrigatório para peças de unidade do estoque"), ("Fundo liso na cor da marca", "liso")]
@@ -570,7 +576,7 @@ def fluxo_arte(s: Sessao, peca_id: str | None = None) -> None:
 
     try:
         with console.status("Montando a arte...", spinner="dots"):
-            r = montar_arte(s.ag, peca_id, gancho=gancho, fundo=fundo)
+            r = montar_arte(s.ag, peca_id, gancho=gancho, fundo=fundo, estilo=estilo)
     except ErroArte as erro:
         if "pendentes" not in str(erro):
             raise
@@ -578,13 +584,15 @@ def fluxo_arte(s: Sessao, peca_id: str | None = None) -> None:
         if not s.p.confirmar("Gerar como RASCUNHO (com tarja, só para conferir o visual)?", padrao=True):
             raise Voltar()
         with console.status("Montando rascunho...", spinner="dots"):
-            r = montar_arte(s.ag, peca_id, gancho=gancho, fundo=fundo, rascunho=True)
+            r = montar_arte(s.ag, peca_id, gancho=gancho, fundo=fundo, rascunho=True, estilo=estilo)
 
     tipo = "[yellow]RASCUNHO — não publicar[/]" if r.rascunho else "[green]pronta para postar (após aprovação)[/]"
     console.print(f"🧩 {len(r.arquivos)} arquivo(s) · {tipo} · fundo: {r.fundo}")
     console.print(f"[green]Pasta:[/] {esc(caminho_curto(r.pasta))}")
     for a in r.avisos:
         console.print(f"[{SUAVE}]• {esc(a)}[/]")
+    if r.validacao is not None:
+        mostrar_validacao(r.validacao)
     if s.p.confirmar("Abrir a pasta da arte?", padrao=True):
         abrir_arquivo(r.pasta)
 

@@ -29,6 +29,18 @@
 | Conteúdo educacional, captação, campanhas gerais, conceitos | Imagem gerada permitida, desde que não represente falsamente um produto à venda |
 | Bastidores, avaliação, depoimentos | Somente material real e autorizado |
 
+## Estilos visuais (padrão completo em docs/padrao_visual.md)
+
+A arte final sai em um de três estilos, escolhido pelo formato e pela frente:
+
+| Estilo | Quando | Foto que o `prompt_imagem` deve descrever |
+|---|---|---|
+| **nativo** | Stories e anúncios | Aparelho **na mão**, cenário real (mesa de madeira, balcão, plantas), luz natural, cara de foto de celular. O texto vira etiquetas por cima. |
+| **editorial** | Carrossel e imagem de feed | Aparelho sobre uma superfície lisa, em estúdio, com o topo livre para o título. |
+| **oferta** | Venda de unidade do estoque | Sem prompt: só foto real da unidade. |
+
+O título da arte é o gancho: **até 7 palavras**, uma ideia, frase normal (sem caixa-alta).
+
 ## Diretrizes para prompts de imagem (Nano Banana / Gemini Image)
 
 O `prompt_imagem` descreve **só a cena**. O código acrescenta sozinho, em todo prompt: a descrição física exata do modelo de iPhone citado (número e posição das câmeras, notch ou Dynamic Island), o enquadramento casado com o layout da arte (título no topo, marca e CTA na base), a cor de fundo da paleta, o padrão fotográfico e as restrições. **Não repita esses blocos** e não dê porcentagens de espaço livre: instruções duplicadas ou conflitantes pioram o resultado.

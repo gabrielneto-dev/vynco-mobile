@@ -243,3 +243,21 @@ def mostrar_pendencias(ag) -> None:
 
 def painel_erro(msg: str) -> Panel:
     return Panel(esc(msg), title="[bold red]Erro[/]", border_style="red", box=box.ROUNDED, padding=(1, 2))
+
+
+def mostrar_validacao(rel) -> None:
+    """Resumo da validação de design (validacao_design.Relatorio)."""
+    from agente.validacao_design import AVISO, FALHA, REGRAS
+
+    cor = {"ok": "green", AVISO: "yellow", FALHA: "red"}
+    rotulo = {"ok": "ok", AVISO: "aviso", FALHA: "falha"}
+    t = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
+    for regra, nivel in rel.por_regra().items():
+        t.add_row(REGRAS[regra], f"[{cor[nivel]}]{rotulo[nivel]}[/]")
+    status = "[green]dentro do padrão[/]" if rel.aprovado else "[red]fora do padrão[/]"
+    console.print(f"🎯 Padrão visual (estilo {esc(rel.estilo)}): {status} — {esc(rel.resumo())}")
+    console.print(t)
+    for a in rel.achados:
+        if a.nivel in (FALHA, AVISO):
+            onde = f" ({a.pagina})" if a.pagina else ""
+            console.print(f"  [{cor[a.nivel]}]•[/] {esc(REGRAS[a.regra])}{esc(onde)}: {esc(a.mensagem)}")

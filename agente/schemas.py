@@ -202,7 +202,7 @@ class Peca(BaseModel):
     objecao_ou_interesse: str = Field(description="Objeção ou interesse do público tratado pela peça.")
     ideia_central: str
     justificativa_estrategica: str
-    ganchos: list[str] = Field(min_length=3, max_length=3, description="Exatamente 3 opções de gancho/título com ângulos distintos.")
+    ganchos: list[str] = Field(min_length=3, max_length=3, description="Exatamente 3 opções de gancho/título com ângulos distintos, cada uma com no máximo 7 palavras (vira o título da arte).")
     copy_principal: str
     legenda: str
     cta: str

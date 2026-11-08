@@ -48,7 +48,7 @@ CAMPOS_NEGOCIO: list[Campo] = [
     Campo("observacoes", "Observações", "Qualquer outra informação útil para o agente."),
 ]
 
-PALETA_PROVISORIA = {"fundo": "#F4F4F6", "texto": "#1F2328", "destaque": "#2F6BFF"}
+PALETA_PROVISORIA = {"fundo": "#F4F4F6", "texto": "#1F2328", "destaque": "#2563EB"}  # azul com contraste AA (5,2:1) para texto branco
 MODELOS_IPHONE = [
     "iPhone 11", "iPhone 11 Pro", "iPhone 11 Pro Max", "iPhone SE (2ª geração)", "iPhone SE (3ª geração)",
     "iPhone 12", "iPhone 12 mini", "iPhone 12 Pro", "iPhone 12 Pro Max",

@@ -36,7 +36,8 @@ agente/          Código
   modos.py       Os 5 modos + lote + imagens
   armazenamento.py  Registro de peças, versões, status, publicações
   cadastro.py    Dados do negócio e estoque (usado pelo menu)
-  arte.py        Arte final: título, textos, CTA e marca sobre a imagem (Pillow, local)
+  arte.py        Arte final (orquestra os estilos editorial/nativo/oferta em arte_*.py; Pillow, local)
+  design.py      Tokens do padrão visual · validacao_design.py: confere a arte contra o padrão
   metricas.py    Importação das métricas exportadas da Meta
   backup.py      Backup incremental para pasta sincronizada
   menu.py        Menu interativo · visual.py: exibição compartilhada
@@ -96,9 +97,11 @@ python -m agente imagem P-20261106-EDU-001 --tamanho 2K
 python -m agente imagem P-20261106-EDU-001 --modelo google/gemini-3-pro-image --tamanho 2K
 python -m agente imagem-livre "Minimal flat lay of an iPhone 15 on light gray, soft light" --proporcao 9:16
 
-# Arte final pronta para postar (local, sem custo)
+# Arte final pronta para postar (local, sem custo) — padrão visual em docs/padrao_visual.md
 python -m agente arte P-20261106-EDU-001 --gancho 2
+python -m agente arte P-20261106-EDU-001 --estilo nativo   # auto | editorial | nativo | oferta
 python -m agente arte P-20261106-EDU-001 --rascunho      # gera mesmo com [PENDENTE], com tarja
+python -m agente validar-arte P-20261106-EDU-001          # confere a última arte contra o padrão (grátis)
 
 # Fluxo de aprovação e publicação (manual)
 python -m agente listar --status revisao

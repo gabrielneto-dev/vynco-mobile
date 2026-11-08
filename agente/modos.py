@@ -13,6 +13,7 @@ from pathlib import Path
 from agente import prompts, render
 from agente.armazenamento import Registro
 from agente.cadastro import PALETA_PROVISORIA
+from agente.design import estilo_padrao
 from agente.config import Config, carregar_config
 from agente.contexto import Contexto, carregar_contexto
 from agente.guardrails import (
@@ -274,6 +275,7 @@ class Agente:
         modelo: str | None = None,
         tamanho: str | None = None,
         referencias: list[Path] | None = None,
+        estilo: str = "auto",
     ) -> tuple[list[Path], list[Achado]]:
         peca, brief, _, _ = self.registro.carregar_modelos(peca_id)
         if b := bloqueio_imagem(brief):
@@ -285,8 +287,10 @@ class Agente:
         caminhos = []
         modelo = modelo or self.cfg.modelo_imagem
         paleta = self.ctx.negocio.get("paleta_cores") or PALETA_PROVISORIA  # fundo da foto casa com a arte
+        if estilo in ("auto", "", None):  # mesmo estilo que a arte vai usar (design.estilo_padrao)
+            estilo = estilo_padrao(brief.formato, brief.frente, brief.produto_id)
         for _ in range(quantidade):
-            for img in gerar_imagens(self.cliente, peca.prompt_imagem, proporcao=proporcao, modelo=modelo, tamanho=tamanho, referencias=referencias, paleta=paleta):
+            for img in gerar_imagens(self.cliente, peca.prompt_imagem, proporcao=proporcao, modelo=modelo, tamanho=tamanho, referencias=referencias, paleta=paleta, estilo=estilo):
                 caminhos.append(self.registro.salvar_imagem(peca_id, img.dados, img.extensao, img.prompt_final, modelo, proporcao))
         return caminhos, achados
 

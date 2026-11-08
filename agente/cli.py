@@ -36,6 +36,7 @@ from agente.visual import (
     mostrar_peca,
     mostrar_pendencias,
     mostrar_revisao,
+    mostrar_validacao,
     mostrar_uso,
     tabela_pecas,
 )
@@ -304,18 +305,36 @@ def arte(
     gancho: int = typer.Option(1, help="Qual dos 3 ganchos vira o título."),
     fundo: str = typer.Option("auto", help="auto | ia | liso (peça de unidade real usa sempre foto real)."),
     rascunho: bool = typer.Option(False, help="Gera mesmo com [PENDENTE], com tarja de rascunho."),
+    estilo: str = typer.Option("auto", help="auto | editorial | nativo | oferta (docs/padrao_visual.md)."),
 ):
-    """Monta a arte final (PNG pronto para postar) — processamento local, sem custo."""
+    """Monta a arte final (PNG pronto para postar) e confere o padrão visual — local, sem custo."""
     from agente.arte import ErroArte, montar_arte
 
     ag = _agente()
     try:
-        r = montar_arte(ag, peca_id, gancho=gancho, fundo=fundo, rascunho=rascunho)
+        r = montar_arte(ag, peca_id, gancho=gancho, fundo=fundo, rascunho=rascunho, estilo=estilo)
     except (ErroArte, ErroRegistro) as erro:
         _falhar(str(erro))
-    console.print(f"[green]{len(r.arquivos)} arquivo(s){' (RASCUNHO)' if r.rascunho else ''}:[/] {esc(caminho_curto(r.pasta))}")
+    console.print(f"[green]{len(r.arquivos)} arquivo(s){' (RASCUNHO)' if r.rascunho else ''} · estilo {r.estilo}:[/] {esc(caminho_curto(r.pasta))}")
     for a in r.avisos:
         console.print(f"[dim]• {esc(a)}[/]")
+    if r.validacao is not None:
+        mostrar_validacao(r.validacao)
+
+
+@app.command("validar-arte")
+def validar_arte(peca_id: str = typer.Argument(...)):
+    """Confere a arte mais recente da peça contra o padrão visual (grátis). Grava validacao.md na pasta da arte."""
+    from agente.validacao_design import validar_peca
+
+    ag = _agente()
+    try:
+        rel = validar_peca(ag, peca_id)
+    except (ValueError, ErroRegistro) as erro:
+        _falhar(str(erro))
+    mostrar_validacao(rel)
+    if not rel.aprovado:
+        raise typer.Exit(1)
 
 
 # ====================================================================== REGISTRO / FLUXO

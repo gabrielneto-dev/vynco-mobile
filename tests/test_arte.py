@@ -104,7 +104,7 @@ def test_marca_com_paleta_e_nome(agente):
 
 def test_fluxo_arte_no_menu_com_pendencia_vira_rascunho(agente):
     r = criar(agente, Formato.imagem, ganchos=["Fale com [PENDENTE: nome da loja]", "b", "c"])
-    s = sessao(agente, [1, "liso", True, False])  # gancho 1 · fundo liso · aceita rascunho · não abre pasta
+    s = sessao(agente, [1, "editorial", "liso", True, False])  # gancho 1 · estilo · fundo liso · aceita rascunho · não abre pasta
     menu.fluxo_arte(s, r.id)
     assert agente.registro.entrada(r.id)["artes"][-1]["rascunho"] is True
     assert s.p.respostas == []

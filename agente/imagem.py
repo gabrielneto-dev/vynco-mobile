@@ -32,7 +32,8 @@ ESPECS_IPHONE = {
 }
 _RE_IPHONE = re.compile(r"\biphone\s*(se|1[1-6])(?:\s*(pro\s*max|pro|plus|mini))?", re.IGNORECASE)
 
-# Enquadramento casado com arte.py: título no topo e marca/CTA na base; o aparelho fica no meio-baixo.
+# Enquadramento casado com os estilos da arte (agente/arte_*.py).
+# Estúdio (editorial): título no topo e marca/CTA na base; o aparelho fica no meio-baixo.
 COMPOSICAO = {
     "9:16": (
         "Composition: vertical frame. The phone sits in the middle-lower part of the frame (roughly from 40% to 80% of the height), "
@@ -45,10 +46,20 @@ COMPOSICAO = {
         "for a headline. Keep the bottom strip calm as well."
     ),
 }
+# Nativo: cara de foto tirada no celular (o que domina na Biblioteca de Anúncios); etiquetas vão por cima.
+COMPOSICAO_NATIVA = (
+    "Composition: one hand holds the phone slightly below the center of the frame, the phone filling about half of the frame "
+    "height, fully visible and never cropped. Leave some calmer, less busy background above the phone for a short text sticker."
+)
 ESTILO = (
     "Style: high-end commercial product photography, shot with a 100mm lens at f/8, soft diffused key light from the upper "
     "left with gentle fill, realistic soft contact shadow, crisp edges, true-to-life materials, colors and reflections, "
     "clean minimal tech aesthetic, one single focal point."
+)
+ESTILO_NATIVO = (
+    "Style: authentic photo taken with a smartphone camera for a social media post, natural daylight, a real everyday setting "
+    "(wooden desk, store counter, plants or a plain wall slightly out of focus), natural skin tones on the hand, subtle real-life "
+    "imperfections, no studio look, no heavy retouching, one single focal point."
 )
 RESTRICOES = (
     "Avoid: any text, letters, numbers, icons or interface elements; logos, badges or seals of any brand "
@@ -75,19 +86,22 @@ def precisao_aparelho(prompt: str) -> str:
     return "\n".join(linhas)
 
 
-def montar_prompt(prompt: str, proporcao: str, *, paleta: dict | None = None, composicao: bool = True) -> str:
-    """Prompt final enviado ao gerador: cena do LLM + fidelidade do aparelho + enquadramento + estilo + restrições."""
+def montar_prompt(prompt: str, proporcao: str, *, paleta: dict | None = None, composicao: bool = True,
+                  estilo: str = "editorial") -> str:
+    """Prompt final enviado ao gerador: cena do LLM + fidelidade do aparelho + enquadramento + estilo + restrições.
+    estilo='nativo' pede foto com cara de celular (aparelho na mão, cenário real); os outros, foto de estúdio."""
+    nativo = estilo == "nativo"
     partes = [prompt.strip()]
     if precisao := precisao_aparelho(prompt):
         partes.append(precisao)
     if composicao:
-        partes.append(COMPOSICAO.get(proporcao, COMPOSICAO["padrao"]))
-    if paleta:
+        partes.append(COMPOSICAO_NATIVA if nativo else COMPOSICAO.get(proporcao, COMPOSICAO["padrao"]))
+    if paleta and not nativo:
         partes.append(
             f"Color: neutral background close to {paleta['fundo']}; at most a faint hint of {paleta['destaque']} "
             "as a soft reflection or background gradient, never as a logo or graphic."
         )
-    partes += [ESTILO, RESTRICOES, f"Aspect ratio: {proporcao}."]
+    partes += [ESTILO_NATIVO if nativo else ESTILO, RESTRICOES, f"Aspect ratio: {proporcao}."]
     return "\n\n".join(partes)
 
 
@@ -124,13 +138,14 @@ def gerar_imagens(
     aplicar_sufixo: bool = True,
     paleta: dict | None = None,
     composicao: bool = True,
+    estilo: str = "editorial",
 ) -> list[ImagemGerada]:
     if proporcao not in PROPORCOES_VALIDAS:
         raise ValueError(f"Proporção inválida: {proporcao}. Use uma de {sorted(PROPORCOES_VALIDAS)}")
     if tamanho and tamanho not in TAMANHOS_VALIDOS:
         raise ValueError(f"Tamanho inválido: {tamanho}. Use {sorted(TAMANHOS_VALIDOS)}")
 
-    texto = montar_prompt(prompt, proporcao, paleta=paleta, composicao=composicao) if aplicar_sufixo else f"{prompt}\n\nAspect ratio: {proporcao}."
+    texto = montar_prompt(prompt, proporcao, paleta=paleta, composicao=composicao, estilo=estilo) if aplicar_sufixo else f"{prompt}\n\nAspect ratio: {proporcao}."
     conteudo: list[dict] = [{"type": "text", "text": texto}]
     for ref in referencias or []:
         conteudo.append({"type": "image_url", "image_url": {"url": _data_url(Path(ref))}})
