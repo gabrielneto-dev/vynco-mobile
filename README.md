@@ -9,7 +9,7 @@ Uma única chave do OpenRouter cobre texto e imagem.
 
 ## Instalação
 
-Requer Python 3.10+.
+Requer Python 3.10+. No **Linux Mint**, siga [docs/execucao_linux_mint.md](docs/execucao_linux_mint.md) (instalação, `agente.sh`, atalho e uso passo a passo).
 
 ```bash
 python -m venv .venv

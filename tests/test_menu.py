@@ -1,5 +1,7 @@
 """Testes do menu interativo com respostas roteirizadas (sem terminal, sem API)."""
 
+from datetime import datetime
+
 import pytest
 from rich.console import Console
 
@@ -121,7 +123,8 @@ def test_aprovacao_bloqueada_mostra_erro_e_continua(agente, capsys):
 
 def test_menu_principal_navega_e_sai(agente):
     # Peças sem nenhuma peça (aviso, não quebra) → planejar 1 semana → não gerar lote → criar via lote → peças → abrir uma → voltar → sair
-    s = sessao(agente, ["pecas", "planejar", 1, "2026-11-09", 4, "", True, False, "lote", "C-20261106-01", False, 1, True,
+    calendario = f"C-{datetime.now():%Y%m%d}-01"  # o ID usa a data de hoje (Registro.novo_id_calendario)
+    s = sessao(agente, ["pecas", "planejar", 1, "2026-11-09", 4, "", True, False, "lote", calendario, False, 1, True,
                         "pecas", "__voltar__", "sair"])
     executar_menu(s)
     assert agente.registro.dados["calendarios"] and len(agente.registro.listar()) == 1
