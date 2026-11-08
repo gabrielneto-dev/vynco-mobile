@@ -31,18 +31,29 @@
 
 ## Diretrizes para prompts de imagem (Nano Banana / Gemini Image)
 
-Escreva o prompt em **inglês** (melhor aderência do modelo), como uma descrição de cena, com:
+O `prompt_imagem` descreve **só a cena**. O código acrescenta sozinho, em todo prompt: a descrição física exata do modelo de iPhone citado (número e posição das câmeras, notch ou Dynamic Island), o enquadramento casado com o layout da arte (título no topo, marca e CTA na base), a cor de fundo da paleta, o padrão fotográfico e as restrições. **Não repita esses blocos** e não dê porcentagens de espaço livre: instruções duplicadas ou conflitantes pioram o resultado.
 
-1. **Assunto e ação:** o que aparece e o que está acontecendo.
-2. **Produto realista:** cite o modelo e suas características físicas reais (ex.: iPhone 15 — câmera dupla em diagonal, Dynamic Island; iPhone 13 — câmera dupla em diagonal, notch). Proporções, câmeras e acabamentos devem ser realistas.
-3. **Composição:** enquadramento, ângulo, espaço negativo reservado para texto (indique onde).
-4. **Iluminação e estilo:** ex. "soft studio lighting, clean minimal tech aesthetic, neutral light-gray background".
-5. **Proporção:** informe a proporção da peça (o código também envia o `aspect_ratio`).
-6. **Texto na imagem:** prefira **sem texto** (o texto é aplicado na edição). Se necessário, no máximo um título curto entre aspas.
-   O mesmo vale para **ícones, selos, setas e elementos de interface**: gere só a cena (aparelho, superfície, luz) e reserve o espaço; esses elementos entram na edição, onde podem ser ajustados e mantidos consistentes entre peças.
-7. **Restrições explícitas:** "no Apple logo emphasis, no brand logos, no visible damage, no cracked screens, no people's faces unless specified, no watermark".
+Escreva em **inglês**, em 2 a 4 frases corridas (descrição de cena, não lista de palavras-chave):
+
+1. **Um aparelho, um modelo, nome exato.** Escreva "iPhone 15", "iPhone 13" etc. (o código usa o nome para garantir as câmeras certas). Peça sobre vários modelos (ex.: captação de 13/14/15) mostra **um** aparelho do modelo base, nunca um Pro, salvo se o Pro for o assunto. Não descreva câmeras nem detalhes técnicos: o código faz isso.
+2. **Ângulo e pose concretos.** Ex.: "lying face down on the surface, seen from directly above", "standing at a slight three-quarter angle, back facing the camera", "held in one hand, only the hand visible". Escolha a pose que conta a ideia da peça (avaliação → aparelho sobre a mesa de inspeção; bateria → tela acesa só com brilho, sem números).
+3. **Superfície e ambiente.** Material e cor do apoio (ex.: "matte light-gray paper sweep", "pale oak desk"), poucos objetos de apoio e só se servirem à ideia (ex.: "a folded microfiber cloth").
+4. **Luz e clima.** Ex.: "soft window light from the left, calm and trustworthy mood".
+5. **Sem texto, ícones ou interface na imagem.** Títulos, setas, selos, números e ícones entram na edição (arte final), onde ficam legíveis e consistentes entre peças. Tela acesa só com cor/brilho genérico, nunca com interface legível.
+
+Exemplo bom: `An iPhone 14 in midnight lies face down on a matte light-gray paper sweep, seen from directly above, next to a neatly folded microfiber cloth. Soft window light from the left creates a gentle shadow; calm, trustworthy mood.`
 
 Proibido em prompts: avarias inexistentes, logotipos de terceiros como elemento de marca, selos de "oficial/autorizado", rostos de pessoas reais, imitação de criativos de concorrentes.
+
+## Texto na tela (`texto_tela` das cenas/slides)
+
+A arte final é montada a partir desse campo, então a forma dele vira o layout:
+
+- **Lista** (critérios, checklist): itens separados por ` | ` → cada item ganha um ✓. Ex.: `iPhone 13, 14 ou 15 | Bateria acima de 80% | Sem bloqueio`.
+- **Etapas** (processo, passo a passo): itens separados por ` > ` → círculos numerados ligados. Ex.: `Conversa no WhatsApp > Avaliação presencial > Pix`.
+- **Frase única**: até ~12 palavras, sem separadores.
+- **Última cena com CTA**: a frase do CTA seguida do WhatsApp no formato `(DD) 9XXXX-XXXX`; o número vira o botão de destaque.
+- Itens curtos (até ~5 palavras cada), no máximo 4 por cena. Não repita o título da capa.
 
 ## Direção de arte — campos obrigatórios por peça
 

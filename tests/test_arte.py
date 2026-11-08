@@ -116,3 +116,57 @@ def test_telefone_nao_quebra_e_apoio_redundante_some():
     assert "(17)\u00a099782-2073" in limpar("Chame no WhatsApp (17) 99782-2073")
     assert _redundante("Vender seu iPhone? 4 critérios", "Vai vender seu iPhone? Confira 4 critérios antes de chamar.")
     assert not _redundante("1 Envie modelo | 2 Avaliação presencial | 3 Pix", "Vai vender seu iPhone?")
+
+
+# ---------------------------------------------------------------------- layout (regressões do primeiro uso real)
+def test_texto_da_cena_vira_lista_etapas_ou_paragrafo():
+    from agente.arte import estruturar, limpar
+
+    assert estruturar(limpar("iPhone 13, 14 ou 15 | bateria acima de 80% | sem bloqueio")) == (
+        "lista", ["iPhone 13, 14 ou 15", "Bateria acima de 80%", "Sem bloqueio"])  # 'iPhone' não vira 'IPhone'
+    assert estruturar("Conversa > avaliação presencial > Pix") == ("etapas", ["Conversa", "Avaliação presencial", "Pix"])
+    assert estruturar(limpar("1. Envie modelo | 2. Avaliação | 3. Pix")) == ("etapas", ["Envie modelo", "Avaliação", "Pix"])
+    assert estruturar("1. Bateria: confira a saúde") == ("paragrafo", ["1. Bateria: confira a saúde"])
+
+
+def test_quebra_equilibrada_sem_palavra_orfa():
+    from PIL import ImageDraw
+
+    from agente.arte import _quebrar, fonte
+
+    d = ImageDraw.Draw(Image.new("RGB", (10, 10)))
+    f = fonte("bold", 80)
+    linhas = _quebrar(d, "iPhone 13, 14 ou 15", f, int(d.textlength("iPhone 13, 14 ou", font=f)) + 5)
+    assert len(linhas) == 2 and len(linhas[-1].split()) > 1  # antes: "iPhone 13, 14 ou" / "15"
+
+
+def test_titulo_da_capa_fica_na_faixa_livre_e_nao_cobre_o_aparelho(agente, tmp_path):
+    from agente.arte import Contexto, Paleta, PALETA_PROVISORIA, capa, faixas_livres
+
+    # Foto clara com um "aparelho" escuro no meio, como as imagens geradas.
+    foto = tmp_path / "f.png"
+    img = Image.new("RGB", (1080, 1920), (205, 205, 200))
+    Image.Image.paste(img, (70, 80, 90), (380, 700, 700, 1400))
+    img.save(foto)
+    faixas = faixas_livres(img.convert("RGBA"), 80, 1000)
+    assert any(a <= 300 and b >= 650 for a, b in faixas) and not any(a < 1000 < b for a, b in faixas)
+
+    c = Contexto(Paleta.do_negocio({"paleta_cores": PALETA_PROVISORIA}), {"nome_loja": "Loja"}, agente.cfg,
+                 ZONAS["stories"], (1080, 1920), fundo_ia=True, paginacao=False)
+    arte = capa(c, "Seu iPhone 13, 14 ou 15 se encaixa nos critérios de compra?", None, None, foto).convert("RGB")
+    aparelho = [arte.getpixel((x, y)) for x in range(400, 690, 20) for y in range(720, 1390, 20)]
+    assert all(p == (70, 80, 90) for p in aparelho)  # nada desenhado sobre o aparelho
+    escuros = sum(1 for x in range(80, 1000, 4) for y in range(260, 690, 4) if sum(arte.getpixel((x, y))) < 200)
+    assert escuros > 300  # o título foi escrito acima dele
+
+
+def test_ultimo_slide_destaca_whatsapp_e_stories_sem_arraste(agente):
+    from agente.arte import Contexto, Paleta, PALETA_PROVISORIA, slide_texto
+
+    paleta = Paleta.do_negocio({"paleta_cores": PALETA_PROVISORIA})
+    c = Contexto(paleta, {"nome_loja": "Loja", "whatsapp_comercial": "(17) 99782-2073"}, agente.cfg,
+                 ZONAS["stories"], (1080, 1920), paginacao=False)
+    final = slide_texto(c, 4, 4, "Envie modelo e condição: (17) 99782-2073", final=True).convert("RGB")
+    corpo = final.crop((0, 0, 1080, 1900))  # sem o filete da base
+    azul = dict((cor, n) for n, cor in corpo.getcolors(maxcolors=1 << 20)).get(paleta.destaque, 0)
+    assert azul > 30_000  # botão na cor de destaque com o número

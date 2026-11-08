@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from agente.armazenamento import ErroRegistro
@@ -199,3 +201,23 @@ def test_haiku_recebe_schema_no_texto_e_resposta_sem_acento_e_refeita(agente, mo
     p = real.gerar_estruturado("s", "p", Peca, modelo="anthropic/claude-sonnet-5.5")
     assert "critérios" in p.copy_principal
     assert "response_format" in enviados[-2] and "response_format" not in enviados[-1]
+
+
+def test_prompt_de_imagem_garante_modelo_enquadramento_e_paleta(agente):
+    from agente.imagem import montar_prompt, precisao_aparelho
+
+    base = precisao_aparelho("An iPhone 15 lying face down on a gray sweep.")
+    assert "exactly two rear camera lenses" in base and "NOT a Pro" in base
+    assert "three rear camera lenses" in precisao_aparelho("An iPhone 15 Pro Max on a desk")
+    assert precisao_aparelho("A smartphone on a desk") == ""
+
+    final = montar_prompt("An iPhone 13 on a desk.", "9:16", paleta={"fundo": "#F4F4F6", "texto": "#111111", "destaque": "#2F6BFF"})
+    assert "Composition" in final and "top 35%" in final and "#F4F4F6" in final and final.endswith("Aspect ratio: 9:16.")
+    assert "Composition" not in montar_prompt("Free prompt", "1:1", composicao=False)
+
+
+def test_metadados_da_imagem_guardam_o_prompt_enviado(agente):
+    r = agente.criar(brief())
+    caminho = agente.imagem_da_peca(r.id)[0][0]
+    meta = json.loads(caminho.with_suffix(".json").read_text(encoding="utf-8"))
+    assert "Device accuracy (iPhone 14)" in meta["prompt"] and "Composition" in meta["prompt"]

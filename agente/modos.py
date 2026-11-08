@@ -12,6 +12,7 @@ from pathlib import Path
 
 from agente import prompts, render
 from agente.armazenamento import Registro
+from agente.cadastro import PALETA_PROVISORIA
 from agente.config import Config, carregar_config
 from agente.contexto import Contexto, carregar_contexto
 from agente.guardrails import (
@@ -283,9 +284,10 @@ class Agente:
         achados = verificar_prompt_imagem(peca.prompt_imagem, brief=brief)
         caminhos = []
         modelo = modelo or self.cfg.modelo_imagem
+        paleta = self.ctx.negocio.get("paleta_cores") or PALETA_PROVISORIA  # fundo da foto casa com a arte
         for _ in range(quantidade):
-            for img in gerar_imagens(self.cliente, peca.prompt_imagem, proporcao=proporcao, modelo=modelo, tamanho=tamanho, referencias=referencias):
-                caminhos.append(self.registro.salvar_imagem(peca_id, img.dados, img.extensao, peca.prompt_imagem, modelo, proporcao))
+            for img in gerar_imagens(self.cliente, peca.prompt_imagem, proporcao=proporcao, modelo=modelo, tamanho=tamanho, referencias=referencias, paleta=paleta):
+                caminhos.append(self.registro.salvar_imagem(peca_id, img.dados, img.extensao, img.prompt_final, modelo, proporcao))
         return caminhos, achados
 
     def imagem_livre(self, prompt: str, *, proporcao: str = "4:5", quantidade: int = 1, modelo: str | None = None, tamanho: str | None = None, referencias: list[Path] | None = None):
@@ -293,8 +295,9 @@ class Agente:
         modelo = modelo or self.cfg.modelo_imagem
         caminhos = []
         for _ in range(quantidade):
-            for img in gerar_imagens(self.cliente, prompt, proporcao=proporcao, modelo=modelo, tamanho=tamanho, referencias=referencias):
-                caminhos.append(self.registro.salvar_imagem(None, img.dados, img.extensao, prompt, modelo, proporcao))
+            # Prompt livre: mantém o enquadramento que a pessoa descreveu (sem a composição da arte).
+            for img in gerar_imagens(self.cliente, prompt, proporcao=proporcao, modelo=modelo, tamanho=tamanho, referencias=referencias, composicao=False):
+                caminhos.append(self.registro.salvar_imagem(None, img.dados, img.extensao, img.prompt_final, modelo, proporcao))
         return caminhos, achados
 
 
